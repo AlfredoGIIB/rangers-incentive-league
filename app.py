@@ -16,23 +16,52 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    .rangers-banner {
+        background: #002D72;
+        color: white;
+        padding: 22px 26px;
+        border-radius: 14px;
+        border-bottom: 6px solid #BA0C2F;
+        margin-bottom: 18px;
+        box-shadow: 0 5px 18px rgba(0,45,114,.22);
+    }
+    .banner-kicker {
+        font-size: 15px;
+        font-weight: 900;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        opacity: .95;
+        margin-bottom: 4px;
+    }
+    .banner-title {
+        font-size: 38px;
+        line-height: 1.05;
+        font-weight: 950;
+        margin: 0;
+    }
+    .banner-subtitle {
+        font-size: 16px;
+        font-weight: 700;
+        color: rgba(255,255,255,.9);
+        margin-top: 8px;
+    }
     .main-title {
-        font-size: 42px;
+        font-size: 38px;
         font-weight: 900;
         margin-bottom: -8px;
-        color: #0f172a;
+        color: #002D72;
     }
     .subtitle {
-        font-size: 17px;
-        color: #64748b;
+        font-size: 16px;
+        color: #857874;
         margin-bottom: 20px;
     }
     .league-card {
         border-radius: 18px;
         padding: 18px 20px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid #857874;
         background: #ffffff;
-        box-shadow: 0 4px 14px rgba(0,0,0,.07);
+        box-shadow: 0 4px 14px rgba(0,45,114,.10);
         min-height: 145px;
     }
     .rank-number {
@@ -42,16 +71,16 @@ st.markdown(
     .player-name {
         font-size: 22px;
         font-weight: 900;
-        color: #111827;
+        color: #002D72;
     }
     .metric-big {
         font-size: 32px;
         font-weight: 900;
-        color: #0f172a;
+        color: #002D72;
     }
     .small-label {
         font-size: 13px;
-        color: #64748b;
+        color: #857874;
         text-transform: uppercase;
         letter-spacing: .06em;
         font-weight: 700;
@@ -61,11 +90,11 @@ st.markdown(
         font-weight: 900;
     }
     .negative-money {
-        color: #b91c1c;
+        color: #BA0C2F;
         font-weight: 900;
     }
     .section-note {
-        color: #64748b;
+        color: #857874;
         font-size: 14px;
         margin-top: -8px;
         margin-bottom: 12px;
@@ -77,30 +106,30 @@ st.markdown(
         margin-bottom: 18px;
     }
     .heatmap-table th {
-        background: #0f172a;
+        background: #002D72;
         color: white;
         text-align: left;
         padding: 9px 10px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid #857874;
         font-weight: 800;
     }
     .heatmap-table td {
         padding: 8px 10px;
-        border: 1px solid #e5e7eb;
-        color: #111827;
+        border: 1px solid #857874;
+        color: #002D72;
         background: white;
     }
     .heatmap-table tr:nth-child(even) td {
-        background: #fafafa;
+        background: #f7f7f7;
     }
     .heatmap-table a {
-        color: #0f172a;
+        color: #002D72;
         font-weight: 800;
         text-decoration: none;
     }
     .heatmap-table a:hover {
         text-decoration: underline;
-        color: #003278;
+        color: #BA0C2F;
     }
     </style>
     """,
@@ -117,6 +146,20 @@ def money_fmt(value):
         value = 0
     sign = "-" if value < 0 else ""
     return f"{sign}RD${abs(value):,.0f}"
+
+
+def show_program_banner(group_name=None):
+    group_html = f" — {html_escape(group_name)}" if group_name else ""
+    st.markdown(
+        f"""
+        <div class="rangers-banner">
+            <div class="banner-kicker">Texas Rangers</div>
+            <div class="banner-title">DSL 2026 Incentive Program</div>
+            <div class="banner-subtitle">Rangers Incentive League{group_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def detect_header_and_weight_rows(raw):
@@ -256,12 +299,12 @@ def heat_color(value, vmin, vmax, cmap="RdYlGn"):
     if cmap == "Greens":
         return blend("#dcfce7", "#15803d", t)
     if cmap == "Reds":
-        return blend("#fee2e2", "#b91c1c", t)
+        return blend("#fde8ed", "#BA0C2F", t)
 
     # Red -> Yellow -> Green
     if t < 0.5:
-        return blend("#fecaca", "#fef9c3", t / 0.5)
-    return blend("#fef9c3", "#86efac", (t - 0.5) / 0.5)
+        return blend("#fde8ed", "#fef3c7", t / 0.5)
+    return blend("#fef3c7", "#22c55e", (t - 0.5) / 0.5)
 
 
 def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False, cmap="RdYlGn", group_name=None, player_link_cols=None):
@@ -341,7 +384,7 @@ def show_top_cards(df, category_cols, weight_map, group_name):
                 f"""
                 <div class="league-card">
                     <div class="rank-number">{medals[i]} #{i+1}</div>
-                    <div class="player-name"><a href="{url}" target="_self" style="color:#111827;text-decoration:none;">{name}</a></div>
+                    <div class="player-name"><a href="{url}" target="_self" style="color:#002D72;text-decoration:none;">{name}</a></div>
                     <div class="small-label">Team {html_escape(r.get('Team', ''))}</div>
                     <div style="height:10px"></div>
                     <div class="metric-big">{money_fmt(r['Total'])}</div>
@@ -422,11 +465,7 @@ def show_category_leaders(df, category_cols, weight_map, group_name):
 
 
 def show_general_page(df, category_cols, money_cols, weight_map, group_name):
-    st.markdown('<div class="main-title">🏆 Rangers Incentive League</div>', unsafe_allow_html=True)
-    st.markdown(
-        f'<div class="subtitle">DSL 2026 Incentive Program — Texas Rangers — {group_name}</div>',
-        unsafe_allow_html=True,
-    )
+    show_program_banner(group_name)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Program Bank", money_fmt(df["Total"].sum()))
@@ -439,8 +478,8 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name):
     show_top_cards(df, category_cols, weight_map, group_name)
 
     st.divider()
-    st.subheader("💸 Where Top Performers Made Their Money")
-    st.markdown('<div class="section-note">Top performers del programa y las categorías que más aportaron a sus ganancias acumuladas.</div>', unsafe_allow_html=True)
+    st.subheader("💸 Primary Earnings Sources")
+    st.markdown('<div class="section-note">Top 3 jugadores y los stats que más han aportado a sus ganancias acumuladas dentro del programa.</div>', unsafe_allow_html=True)
     show_top_money_sources(df, category_cols, weight_map, group_name)
 
     st.divider()
@@ -450,6 +489,7 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name):
     st.subheader("📋 Full Standings")
     st.markdown('<div class="section-note">Haz click en cualquier nombre para abrir el reporte individual del jugador.</div>', unsafe_allow_html=True)
     show_full_standings(df, category_cols, weight_map, group_name)
+    st.markdown('<div style="color:#857874;font-size:13px;margin-top:20px;text-align:center;">Texas Rangers Baseball Club · DSL 2026 Incentive Program</div>', unsafe_allow_html=True)
 
 
 def show_player_page(df, category_cols, weight_map, selected_player, group_name):
@@ -478,7 +518,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
 
     left, right = st.columns(2)
     with left:
-        st.subheader("📈 Money Earned")
+        st.subheader("📈 Earnings Sources")
         st.caption("Stats que más han aportado a sus ganancias dentro del programa de incentivos DSL 2026.")
         if positive.empty:
             st.info("No positive earnings registered yet.")
@@ -493,10 +533,10 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
             )
 
     with right:
-        st.subheader("📉 Money Lost")
+        st.subheader("📉 Earnings Deductions")
         st.caption("Stats que han generado pérdidas dentro del programa de incentivos DSL 2026.")
         if negative.empty:
-            st.success("No money lost in negative stats.")
+            st.success("No earnings deductions registered.")
         else:
             display_heatmap_table(
                 negative.head(10),
@@ -508,21 +548,21 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
             )
 
     st.divider()
-    st.subheader("🎯 Incentive Summary")
+    st.subheader("🎯 Player Incentive Summary")
     c1, c2 = st.columns(2)
     if not positive.empty:
         top_strength = positive.iloc[0]
-        c1.success(f"Main Earnings Source: {top_strength['Stats']} — {money_fmt(top_strength['Earnings'])}")
+        c1.success(f"Primary Earnings Source: {top_strength['Stats']} — {money_fmt(top_strength['Earnings'])}")
     else:
         c1.info("No main money source yet.")
 
     if not negative.empty:
         biggest_leak = negative.iloc[0]
-        c2.error(f"Biggest Cost: {biggest_leak['Stats']} — {money_fmt(biggest_leak['Earnings'])}")
+        c2.error(f"Largest Deduction: {biggest_leak['Stats']} — {money_fmt(biggest_leak['Earnings'])}")
     else:
-        c2.success("No negative category cost yet.")
+        c2.success("No earnings deductions registered.")
 
-    st.subheader("🧾 Full Money Breakdown")
+    st.subheader("🧾 Full Earnings Breakdown")
     display_heatmap_table(
         bd,
         columns=["Stats", "Qty", "Weight", "Earnings"],
@@ -531,6 +571,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
         cmap="RdYlGn",
         group_name=group_name,
     )
+    st.markdown('<div style="color:#857874;font-size:13px;margin-top:20px;text-align:center;">Texas Rangers Baseball Club · DSL 2026 Incentive Program</div>', unsafe_allow_html=True)
 
 
 # -----------------------------
@@ -548,7 +589,7 @@ elif DEFAULT_EXCEL_PATH.exists():
     excel_source = DEFAULT_EXCEL_PATH
     st.sidebar.success("Using default Excel")
 else:
-    st.markdown('<div class="main-title">🏆 Rangers Incentive League</div>', unsafe_allow_html=True)
+    show_program_banner()
     st.markdown(
         '<div class="subtitle">Upload the incentives Excel to generate the DSL 2026 Texas Rangers incentive report.</div>',
         unsafe_allow_html=True,
