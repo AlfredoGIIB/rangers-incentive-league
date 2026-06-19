@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import quote
 
 import pandas as pd
 import streamlit as st
@@ -69,6 +70,38 @@ st.markdown(
         margin-top: -8px;
         margin-bottom: 12px;
     }
+    .heatmap-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin-bottom: 18px;
+    }
+    .heatmap-table th {
+        background: #0f172a;
+        color: white;
+        text-align: left;
+        padding: 9px 10px;
+        border: 1px solid #e5e7eb;
+        font-weight: 800;
+    }
+    .heatmap-table td {
+        padding: 8px 10px;
+        border: 1px solid #e5e7eb;
+        color: #111827;
+        background: white;
+    }
+    .heatmap-table tr:nth-child(even) td {
+        background: #fafafa;
+    }
+    .heatmap-table a {
+        color: #0f172a;
+        font-weight: 800;
+        text-decoration: none;
+    }
+    .heatmap-table a:hover {
+        text-decoration: underline;
+        color: #003278;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -87,10 +120,6 @@ def money_fmt(value):
 
 
 def detect_header_and_weight_rows(raw):
-    """
-    Finds the row where first column is Players or Pitchers.
-    The row above it is assumed to contain incentive weights.
-    """
     first_col = raw.iloc[:, 0].astype(str).str.strip().str.lower()
     header_candidates = raw.index[first_col.isin(["players", "pitchers"])].tolist()
     if not header_candidates:
@@ -184,48 +213,121 @@ def top_positive_stat(row, category_cols, weight_map):
     return str(top["Stats"]), float(top["Earnings"])
 
 
-def money_table_style(df, earnings_col="Earnings", cmap="RdYlGn"):
-    """
-    Professional incentive-program heatmap tables.
-    Highest values = green, average = yellow, lowest values = red.
-    For negative-only tables, the biggest loss stays red and the smallest loss trends green.
-    """
-    if df.empty or earnings_col not in df.columns:
-        return df.style
+def player_link(player, group_name):
+    return f"?view=player&group={quote(str(group_name))}&player={quote(str(player))}"
+
+
+def html_escape(value):
     return (
-        df.style
-        .background_gradient(subset=[earnings_col], cmap=cmap)
-        .format({
-            earnings_col: money_fmt,
-            "Weight": lambda x: money_fmt(x).replace("RD$", ""),
-            "Qty": lambda x: f"{x:,.0f}",
-        })
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
     )
 
 
-def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False, cmap="RdYlGn"):
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+
+def rgb_to_hex(rgb):
+    return "#" + "".join(f"{max(0, min(255, int(v))):02x}" for v in rgb)
+
+
+def blend(c1, c2, t):
+    r1, g1, b1 = hex_to_rgb(c1)
+    r2, g2, b2 = hex_to_rgb(c2)
+    return rgb_to_hex((r1 + (r2-r1)*t, g1 + (g2-g1)*t, b1 + (b2-b1)*t))
+
+
+def heat_color(value, vmin, vmax, cmap="RdYlGn"):
+    try:
+        value = float(value)
+    except Exception:
+        return "#ffffff"
+    if vmax == vmin:
+        t = 1.0
+    else:
+        t = (value - vmin) / (vmax - vmin)
+    t = max(0, min(1, t))
+
+    if cmap == "Greens":
+        return blend("#dcfce7", "#15803d", t)
+    if cmap == "Reds":
+        return blend("#fee2e2", "#b91c1c", t)
+
+    # Red -> Yellow -> Green
+    if t < 0.5:
+        return blend("#fecaca", "#fef9c3", t / 0.5)
+    return blend("#fef9c3", "#86efac", (t - 0.5) / 0.5)
+
+
+def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False, cmap="RdYlGn", group_name=None, player_link_cols=None):
     if df.empty:
         st.info("No data available yet.")
         return
+
     table = df.copy()
     if sort_by in table.columns:
         table = table.sort_values(sort_by, ascending=ascending)
     if columns:
         table = table[columns]
-    st.dataframe(money_table_style(table, cmap=cmap), use_container_width=True, hide_index=True)
 
-def set_player_and_open(player):
-    st.session_state["selected_player"] = player
-    st.session_state["view"] = "👤 Player Report"
-    st.session_state["view_radio"] = "👤 Player Report"
+    player_link_cols = player_link_cols or []
+    numeric_heat_cols = [c for c in table.columns if c in ["Total", "Earnings"] or pd.api.types.is_numeric_dtype(table[c])]
+    # Only heatmap the most important money/value column when present.
+    if "Earnings" in table.columns:
+        heat_cols = ["Earnings"]
+    elif "Total" in table.columns:
+        heat_cols = ["Total"]
+    else:
+        heat_cols = [c for c in numeric_heat_cols if c not in ["Rank", "Qty", "Weight"]]
+
+    mins = {c: pd.to_numeric(table[c], errors="coerce").min() for c in heat_cols}
+    maxs = {c: pd.to_numeric(table[c], errors="coerce").max() for c in heat_cols}
+
+    html = ['<table class="heatmap-table">']
+    html.append("<thead><tr>")
+    for c in table.columns:
+        html.append(f"<th>{html_escape(c)}</th>")
+    html.append("</tr></thead><tbody>")
+
+    for _, row in table.iterrows():
+        html.append("<tr>")
+        for c in table.columns:
+            val = row[c]
+            style = ""
+            if c in heat_cols:
+                bg = heat_color(val, mins[c], maxs[c], cmap=cmap)
+                style = f' style="background:{bg}; font-weight:800;"'
+            if c in player_link_cols and group_name:
+                display_val = html_escape(val)
+                cell = f'<a href="{player_link(val, group_name)}" target="_self">{display_val}</a>'
+            elif c in ["Total", "Earnings"]:
+                cell = money_fmt(val)
+            elif c == "Weight":
+                cell = money_fmt(val).replace("RD$", "")
+            elif c == "Qty":
+                try:
+                    cell = f"{float(val):,.0f}"
+                except Exception:
+                    cell = html_escape(val)
+            else:
+                cell = html_escape(val)
+            html.append(f"<td{style}>{cell}</td>")
+        html.append("</tr>")
+    html.append("</tbody></table>")
+    st.markdown("".join(html), unsafe_allow_html=True)
 
 
-def go_home():
+def clear_query_and_go_home():
+    st.query_params.clear()
     st.session_state["view"] = "🏠 League Home"
-    st.session_state["view_radio"] = "🏠 League Home"
 
 
-def show_top_cards(df, category_cols, weight_map):
+def show_top_cards(df, category_cols, weight_map, group_name):
     top3 = df.sort_values("Total", ascending=False).head(3).reset_index(drop=True)
     medals = ["🥇", "🥈", "🥉"]
     cols = st.columns(3)
@@ -233,24 +335,26 @@ def show_top_cards(df, category_cols, weight_map):
         if i < len(top3):
             r = top3.iloc[i]
             top_stat, top_earnings = top_positive_stat(r, category_cols, weight_map)
+            name = html_escape(r["Player"])
+            url = player_link(r["Player"], group_name)
             col.markdown(
                 f"""
                 <div class="league-card">
                     <div class="rank-number">{medals[i]} #{i+1}</div>
-                    <div class="player-name">{r['Player']}</div>
-                    <div class="small-label">Team {r.get('Team', '')}</div>
+                    <div class="player-name"><a href="{url}" target="_self" style="color:#111827;text-decoration:none;">{name}</a></div>
+                    <div class="small-label">Team {html_escape(r.get('Team', ''))}</div>
                     <div style="height:10px"></div>
                     <div class="metric-big">{money_fmt(r['Total'])}</div>
                     <div style="height:8px"></div>
                     <div class="small-label">Biggest Contributor</div>
-                    <div class="positive-money">{top_stat} — {money_fmt(top_earnings)}</div>
+                    <div class="positive-money">{html_escape(top_stat)} — {money_fmt(top_earnings)}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
 
-def show_top_money_sources(df, category_cols, weight_map):
+def show_top_money_sources(df, category_cols, weight_map, group_name):
     top_players = df.sort_values("Total", ascending=False).head(3)
     for _, player in top_players.iterrows():
         bd = player_breakdown(player, category_cols, weight_map)
@@ -258,17 +362,19 @@ def show_top_money_sources(df, category_cols, weight_map):
         if positive.empty:
             continue
 
-        st.markdown(f"### #{int(player['Rank'])} {player['Player']} — {money_fmt(player['Total'])}")
+        url = player_link(player["Player"], group_name)
+        st.markdown(f"### #{int(player['Rank'])} [{player['Player']}]({url}) — {money_fmt(player['Total'])}")
         display_heatmap_table(
             positive,
             columns=["Stats", "Qty", "Weight", "Earnings"],
             sort_by="Earnings",
             ascending=False,
             cmap="Greens",
+            group_name=group_name,
         )
 
 
-def show_full_standings(df, category_cols, weight_map):
+def show_full_standings(df, category_cols, weight_map, group_name):
     standings = df[["Rank", "Player", "Team", "Total"]].sort_values("Rank").copy()
     contributors = df.apply(lambda r: top_positive_stat(r, category_cols, weight_map), axis=1)
     contributor_map = {
@@ -277,37 +383,24 @@ def show_full_standings(df, category_cols, weight_map):
     }
     standings["Biggest Contributor"] = standings["Player"].map(contributor_map)
 
-    styled = (
-        standings.style
-        .background_gradient(subset=["Total"], cmap="RdYlGn")
-        .format({"Total": money_fmt})
+    display_heatmap_table(
+        standings,
+        columns=["Rank", "Player", "Team", "Total", "Biggest Contributor"],
+        sort_by="Rank",
+        ascending=True,
+        cmap="RdYlGn",
+        group_name=group_name,
+        player_link_cols=["Player"],
     )
-    st.dataframe(styled, use_container_width=True, hide_index=True)
-
-    st.markdown("### Open Individual Report")
-    st.caption("Selecciona un jugador para abrir su reporte individual.")
-    players = df.sort_values("Rank")["Player"].tolist()
-    cols = st.columns(3)
-    for idx, player in enumerate(players):
-        with cols[idx % 3]:
-            total = df.loc[df["Player"] == player, "Total"].iloc[0]
-            rank = df.loc[df["Player"] == player, "Rank"].iloc[0]
-            st.button(
-                f"#{int(rank)} {player} — {money_fmt(total)}",
-                key=f"standings_open_{idx}_{player}",
-                on_click=set_player_and_open,
-                args=(player,),
-                use_container_width=True,
-            )
 
 
-def show_category_leaders(df, category_cols, weight_map):
+def show_category_leaders(df, category_cols, weight_map, group_name):
     positive_categories = [c for c in category_cols if weight_map.get(c, 0) and weight_map.get(c, 0) > 0]
     if not positive_categories:
         return
 
     st.subheader("📊 Stats Leaders")
-    st.markdown('<div class="section-note">Top 3 jugadores por cada stat positivo del programa.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-note">Top 3 jugadores por cada stat positivo del programa de incentivos DSL 2026.</div>', unsafe_allow_html=True)
 
     selected_categories = positive_categories[:6]
     cols = st.columns(3)
@@ -317,8 +410,15 @@ def show_category_leaders(df, category_cols, weight_map):
             leaders[cat] = pd.to_numeric(leaders[cat], errors="coerce").fillna(0)
             leaders = leaders.sort_values(cat, ascending=False).head(3)
             st.markdown(f"#### {cat}")
-            styled_leaders = leaders.style.background_gradient(subset=[cat], cmap="RdYlGn")
-            st.dataframe(styled_leaders, use_container_width=True, hide_index=True)
+            display_heatmap_table(
+                leaders,
+                columns=["Player", cat],
+                sort_by=cat,
+                ascending=False,
+                cmap="RdYlGn",
+                group_name=group_name,
+                player_link_cols=["Player"],
+            )
 
 
 def show_general_page(df, category_cols, money_cols, weight_map, group_name):
@@ -336,19 +436,20 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name):
 
     st.divider()
     st.subheader("🔥 Top Performers")
-    show_top_cards(df, category_cols, weight_map)
+    show_top_cards(df, category_cols, weight_map, group_name)
 
     st.divider()
     st.subheader("💸 Where Top Performers Made Their Money")
     st.markdown('<div class="section-note">Top performers del programa y las categorías que más aportaron a sus ganancias acumuladas.</div>', unsafe_allow_html=True)
-    show_top_money_sources(df, category_cols, weight_map)
+    show_top_money_sources(df, category_cols, weight_map, group_name)
 
     st.divider()
-    show_category_leaders(df, category_cols, weight_map)
+    show_category_leaders(df, category_cols, weight_map, group_name)
 
     st.divider()
     st.subheader("📋 Full Standings")
-    show_full_standings(df, category_cols, weight_map)
+    st.markdown('<div class="section-note">Haz click en cualquier nombre para abrir el reporte individual del jugador.</div>', unsafe_allow_html=True)
+    show_full_standings(df, category_cols, weight_map, group_name)
 
 
 def show_player_page(df, category_cols, weight_map, selected_player, group_name):
@@ -362,7 +463,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
     positive = bd[bd["Earnings"] > 0].sort_values("Earnings", ascending=False)
     negative = bd[bd["Earnings"] < 0].sort_values("Earnings")
 
-    st.markdown(f'<div class="main-title">👤 {selected_player}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="main-title">👤 {html_escape(selected_player)}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="subtitle">Individual report — {group_name}</div>', unsafe_allow_html=True)
 
     c1, c2, c3, c4 = st.columns(4)
@@ -371,11 +472,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
     c3.metric("Team", row.get("Team", ""))
     c4.metric("Group", group_name)
 
-    st.button(
-        "← Back to Full Standings",
-        use_container_width=False,
-        on_click=go_home,
-    )
+    st.markdown(f"[← Back to Full Standings](?group={quote(str(group_name))})")
 
     st.divider()
 
@@ -391,6 +488,8 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
                 columns=["Stats", "Qty", "Weight", "Earnings"],
                 sort_by="Earnings",
                 ascending=False,
+                cmap="Greens",
+                group_name=group_name,
             )
 
     with right:
@@ -404,6 +503,8 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
                 columns=["Stats", "Qty", "Weight", "Earnings"],
                 sort_by="Earnings",
                 ascending=True,
+                cmap="Reds",
+                group_name=group_name,
             )
 
     st.divider()
@@ -427,6 +528,8 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
         columns=["Stats", "Qty", "Weight", "Earnings"],
         sort_by="Earnings",
         ascending=False,
+        cmap="RdYlGn",
+        group_name=group_name,
     )
 
 
@@ -437,9 +540,6 @@ DEFAULT_EXCEL_PATH = Path(__file__).with_name("Incentives System - DR TEX 2026.x
 
 st.sidebar.title("🏆 Rangers Incentive League")
 uploaded_file = st.sidebar.file_uploader("Upload a different incentives Excel", type=["xlsx"])
-
-if "view" not in st.session_state:
-    st.session_state["view"] = "🏠 League Home"
 
 if uploaded_file is not None:
     excel_source = uploaded_file
@@ -466,7 +566,15 @@ preferred = [s for s in ["Position Players", "Pitchers"] if s in sheet_names]
 other = [s for s in sheet_names if s not in preferred]
 sheet_options = preferred + other
 
-selected_sheet = st.sidebar.radio("Group", sheet_options, index=0)
+query_group = st.query_params.get("group")
+query_player = st.query_params.get("player")
+query_view = st.query_params.get("view")
+
+sheet_index = 0
+if query_group in sheet_options:
+    sheet_index = sheet_options.index(query_group)
+
+selected_sheet = st.sidebar.radio("Group", sheet_options, index=sheet_index)
 
 try:
     df, category_cols, money_cols, weight_map = process_sheet(excel_source, selected_sheet)
@@ -476,24 +584,7 @@ except Exception as e:
 
 players = df.sort_values("Total", ascending=False)["Player"].tolist()
 
-view = st.sidebar.radio(
-    "View",
-    ["🏠 League Home", "👤 Player Report"],
-    index=0 if st.session_state.get("view") == "🏠 League Home" else 1,
-    key="view_radio",
-)
-st.session_state["view"] = view
-
-if "selected_player" not in st.session_state or st.session_state["selected_player"] not in players:
-    st.session_state["selected_player"] = players[0] if players else None
-
-if st.session_state["view"] == "👤 Player Report":
-    selected_player = st.sidebar.selectbox(
-        "Select Player",
-        players,
-        index=players.index(st.session_state["selected_player"]) if st.session_state["selected_player"] in players else 0,
-    )
-    st.session_state["selected_player"] = selected_player
-    show_player_page(df, category_cols, weight_map, selected_player, selected_sheet)
+if query_view == "player" and query_player in players:
+    show_player_page(df, category_cols, weight_map, query_player, selected_sheet)
 else:
     show_general_page(df, category_cols, money_cols, weight_map, selected_sheet)
