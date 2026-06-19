@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 
@@ -98,8 +100,8 @@ def detect_header_and_weight_rows(raw):
     return header_row, weight_row
 
 
-def process_sheet(uploaded_file, sheet_name):
-    raw = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=None)
+def process_sheet(excel_file, sheet_name):
+    raw = pd.read_excel(excel_file, sheet_name=sheet_name, header=None)
     header_row, weight_row = detect_header_and_weight_rows(raw)
 
     headers = raw.iloc[header_row].tolist()
@@ -162,20 +164,21 @@ def player_breakdown(row, category_cols, weight_map):
         value = qty * weight
         if qty != 0 or value != 0:
             records.append({
-                "Category": col,
+                "Stats": col,
                 "Qty": qty,
                 "Weight": weight,
-                "Value": value,
+                "Earnings": value,
             })
     out = pd.DataFrame(records)
     if out.empty:
-        return pd.DataFrame(columns=["Category", "Qty", "Weight", "Value"])
-    return out.sort_values("Value", ascending=False)
+        return pd.DataFrame(columns=["Stats", "Qty", "Weight", "Earnings"])
+    return out.sort_values("Earnings", ascending=False)
 
 
 def set_player_and_open(player):
     st.session_state["selected_player"] = player
     st.session_state["view"] = "👤 Player Report"
+    st.session_state["view_radio"] = "👤 Player Report"
 
 
 def show_top_cards(df):
@@ -210,16 +213,16 @@ def show_top_money_sources(df, category_cols, weight_map):
     top_players = df.sort_values("Total", ascending=False).head(5)
     for _, player in top_players.iterrows():
         bd = player_breakdown(player, category_cols, weight_map)
-        positive = bd[bd["Value"] > 0].sort_values("Value", ascending=False).head(5)
+        positive = bd[bd["Earnings"] > 0].sort_values("Earnings", ascending=False).head(5)
         if positive.empty:
             continue
 
         st.markdown(f"### #{int(player['Rank'])} {player['Player']} — {money_fmt(player['Total'])}")
-        chart_df = positive.set_index("Category")[["Value"]]
+        chart_df = positive.set_index("Stats")[["Earnings"]]
         st.bar_chart(chart_df)
 
         display = positive.copy()
-        display["Value"] = display["Value"].apply(money_fmt)
+        display["Earnings"] = display["Earnings"].apply(money_fmt)
         display["Weight"] = display["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
         display["Qty"] = display["Qty"].map(lambda x: f"{x:,.0f}")
         st.dataframe(display, use_container_width=True, hide_index=True)
@@ -252,8 +255,8 @@ def show_category_leaders(df, category_cols, weight_map):
     if not positive_categories:
         return
 
-    st.subheader("📊 League Leaders by Category")
-    st.markdown('<div class="section-note">Top performers por categoría positiva del sistema de incentivos.</div>', unsafe_allow_html=True)
+    st.subheader("📊 League Leaders by Stats")
+    st.markdown('<div class="section-note">Top performers by positive incentive stats.</div>', unsafe_allow_html=True)
 
     selected_categories = positive_categories[:6]
     cols = st.columns(3)
@@ -304,8 +307,8 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
 
     row = player_rows.iloc[0]
     bd = player_breakdown(row, category_cols, weight_map)
-    positive = bd[bd["Value"] > 0].sort_values("Value", ascending=False)
-    negative = bd[bd["Value"] < 0].sort_values("Value")
+    positive = bd[bd["Earnings"] > 0].sort_values("Earnings", ascending=False)
+    negative = bd[bd["Earnings"] < 0].sort_values("Earnings")
 
     st.markdown(f'<div class="main-title">👤 {selected_player}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="subtitle">Individual report — {group_name}</div>', unsafe_allow_html=True)
@@ -318,6 +321,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
 
     if st.button("← Back to Full Standings", use_container_width=False):
         st.session_state["view"] = "🏠 League Home"
+        st.session_state["view_radio"] = "🏠 League Home"
         st.rerun()
 
     st.divider()
@@ -325,28 +329,28 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
     left, right = st.columns(2)
     with left:
         st.subheader("📈 Money Earned")
-        st.caption("Categorías que más han sumado a sus ganancias.")
+        st.caption("Stats that have added the most to his earnings.")
         if positive.empty:
-            st.info("Todavía no tiene ganancias positivas registradas.")
+            st.info("No positive earnings registered yet.")
         else:
-            st.bar_chart(positive.head(8).set_index("Category")[["Value"]])
+            st.bar_chart(positive.head(8).set_index("Stats")[["Earnings"]])
             display = positive.copy()
-            display["Value"] = display["Value"].apply(money_fmt)
+            display["Earnings"] = display["Earnings"].apply(money_fmt)
             display["Weight"] = display["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
             display["Qty"] = display["Qty"].map(lambda x: f"{x:,.0f}")
             st.dataframe(display, use_container_width=True, hide_index=True)
 
     with right:
         st.subheader("📉 Money Lost")
-        st.caption("Categorías que le han costado dinero.")
+        st.caption("Stats that have cost him money.")
         if negative.empty:
-            st.success("No tiene pérdidas en categorías negativas.")
+            st.success("No money lost in negative stats.")
         else:
             chart_neg = negative.copy()
-            chart_neg["Loss"] = chart_neg["Value"].abs()
-            st.bar_chart(chart_neg.head(8).set_index("Category")[["Loss"]])
+            chart_neg["Loss"] = chart_neg["Earnings"].abs()
+            st.bar_chart(chart_neg.head(8).set_index("Stats")[["Loss"]])
             display = negative.copy()
-            display["Value"] = display["Value"].apply(money_fmt)
+            display["Earnings"] = display["Earnings"].apply(money_fmt)
             display["Weight"] = display["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
             display["Qty"] = display["Qty"].map(lambda x: f"{x:,.0f}")
             st.dataframe(display, use_container_width=True, hide_index=True)
@@ -356,19 +360,19 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
     c1, c2 = st.columns(2)
     if not positive.empty:
         top_strength = positive.iloc[0]
-        c1.success(f"Main Money Source: {top_strength['Category']} — {money_fmt(top_strength['Value'])}")
+        c1.success(f"Main Money Source: {top_strength['Stats']} — {money_fmt(top_strength['Earnings'])}")
     else:
         c1.info("No main money source yet.")
 
     if not negative.empty:
         biggest_leak = negative.iloc[0]
-        c2.error(f"Biggest Cost: {biggest_leak['Category']} — {money_fmt(biggest_leak['Value'])}")
+        c2.error(f"Biggest Cost: {biggest_leak['Stats']} — {money_fmt(biggest_leak['Earnings'])}")
     else:
         c2.success("No negative category cost yet.")
 
     st.subheader("🧾 Full Money Breakdown")
     full = bd.copy()
-    full["Value"] = full["Value"].apply(money_fmt)
+    full["Earnings"] = full["Earnings"].apply(money_fmt)
     full["Weight"] = full["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
     full["Qty"] = full["Qty"].map(lambda x: f"{x:,.0f}")
     st.dataframe(full, use_container_width=True, hide_index=True)
@@ -377,23 +381,31 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
 # -----------------------------
 # App
 # -----------------------------
+DEFAULT_EXCEL_PATH = Path(__file__).with_name("Incentives System - DR TEX 2026.xlsx")
+
 st.sidebar.title("🏆 Rangers Incentive League")
-uploaded_file = st.sidebar.file_uploader("Upload incentives Excel", type=["xlsx"])
+uploaded_file = st.sidebar.file_uploader("Upload a different incentives Excel", type=["xlsx"])
 
 if "view" not in st.session_state:
     st.session_state["view"] = "🏠 League Home"
 
-if uploaded_file is None:
+if uploaded_file is not None:
+    excel_source = uploaded_file
+    st.sidebar.success("Using uploaded Excel")
+elif DEFAULT_EXCEL_PATH.exists():
+    excel_source = DEFAULT_EXCEL_PATH
+    st.sidebar.success("Using default Excel")
+else:
     st.markdown('<div class="main-title">🏆 Rangers Incentive League</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="subtitle">Sube el Excel de incentivos para generar el dashboard estilo Fantasy Football.</div>',
+        '<div class="subtitle">Upload the incentives Excel to generate the Fantasy-style dashboard.</div>',
         unsafe_allow_html=True,
     )
-    st.info("Usa el archivo Excel con las hojas 'Position Players' y 'Pitchers'.")
+    st.info("No default Excel was found. Upload an Excel with the sheets 'Position Players' and 'Pitchers'.")
     st.stop()
 
 try:
-    sheet_names = pd.ExcelFile(uploaded_file).sheet_names
+    sheet_names = pd.ExcelFile(excel_source).sheet_names
 except Exception as e:
     st.error(f"No pude leer el archivo: {e}")
     st.stop()
@@ -405,7 +417,7 @@ sheet_options = preferred + other
 selected_sheet = st.sidebar.radio("Group", sheet_options, index=0)
 
 try:
-    df, category_cols, money_cols, weight_map = process_sheet(uploaded_file, selected_sheet)
+    df, category_cols, money_cols, weight_map = process_sheet(excel_source, selected_sheet)
 except Exception as e:
     st.error(f"Error procesando la hoja {selected_sheet}: {e}")
     st.stop()
