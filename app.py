@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -185,27 +184,35 @@ def top_positive_stat(row, category_cols, weight_map):
     return str(top["Stats"]), float(top["Earnings"])
 
 
-def red_loss_chart(data, limit=8):
-    chart_data = data.head(limit).copy()
-    chart_data["Loss"] = chart_data["Earnings"].abs()
-    chart_data = chart_data.sort_values("Loss", ascending=True)
-
-    chart = (
-        alt.Chart(chart_data)
-        .mark_bar(color="#dc2626")
-        .encode(
-            x=alt.X("Loss:Q", title="Earnings lost", axis=alt.Axis(format=",.0f")),
-            y=alt.Y("Stats:N", sort=None, title="Stats"),
-            tooltip=[
-                alt.Tooltip("Stats:N", title="Stats"),
-                alt.Tooltip("Earnings:Q", title="Earnings", format=",.0f"),
-                alt.Tooltip("Qty:Q", title="Qty", format=",.0f"),
-            ],
-        )
-        .properties(height=max(260, len(chart_data) * 34))
+def money_table_style(df, earnings_col="Earnings"):
+    """
+    Professional Fantasy-style heatmap tables.
+    Highest values = green, average = yellow, lowest values = red.
+    For negative-only tables, the biggest loss stays red and the smallest loss trends green.
+    """
+    if df.empty or earnings_col not in df.columns:
+        return df.style
+    return (
+        df.style
+        .background_gradient(subset=[earnings_col], cmap="RdYlGn")
+        .format({
+            earnings_col: money_fmt,
+            "Weight": lambda x: money_fmt(x).replace("RD$", ""),
+            "Qty": lambda x: f"{x:,.0f}",
+        })
     )
-    st.altair_chart(chart, use_container_width=True)
 
+
+def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False):
+    if df.empty:
+        st.info("No data available yet.")
+        return
+    table = df.copy()
+    if sort_by in table.columns:
+        table = table.sort_values(sort_by, ascending=ascending)
+    if columns:
+        table = table[columns]
+    st.dataframe(money_table_style(table), use_container_width=True, hide_index=True)
 
 def set_player_and_open(player):
     st.session_state["selected_player"] = player
@@ -254,14 +261,12 @@ def show_top_money_sources(df, category_cols, weight_map):
             continue
 
         st.markdown(f"### #{int(player['Rank'])} {player['Player']} — {money_fmt(player['Total'])}")
-        chart_df = positive.set_index("Stats")[["Earnings"]]
-        st.bar_chart(chart_df)
-
-        display = positive.copy()
-        display["Earnings"] = display["Earnings"].apply(money_fmt)
-        display["Weight"] = display["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
-        display["Qty"] = display["Qty"].map(lambda x: f"{x:,.0f}")
-        st.dataframe(display, use_container_width=True, hide_index=True)
+        display_heatmap_table(
+            positive,
+            columns=["Stats", "Qty", "Weight", "Earnings"],
+            sort_by="Earnings",
+            ascending=False,
+        )
 
 
 def show_full_standings(df, category_cols, weight_map):
@@ -313,7 +318,8 @@ def show_category_leaders(df, category_cols, weight_map):
             leaders[cat] = pd.to_numeric(leaders[cat], errors="coerce").fillna(0)
             leaders = leaders.sort_values(cat, ascending=False).head(5)
             st.markdown(f"#### {cat}")
-            st.dataframe(leaders, use_container_width=True, hide_index=True)
+            styled_leaders = leaders.style.background_gradient(subset=[cat], cmap="RdYlGn")
+            st.dataframe(styled_leaders, use_container_width=True, hide_index=True)
 
 
 def show_general_page(df, category_cols, money_cols, weight_map, group_name):
@@ -376,29 +382,29 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
     left, right = st.columns(2)
     with left:
         st.subheader("📈 Money Earned")
-        st.caption("Stats that have added the most to his earnings.")
+        st.caption("Stats that have added the most to his earnings. Heatmap: green = highest, yellow = average, red = lowest.")
         if positive.empty:
             st.info("No positive earnings registered yet.")
         else:
-            st.bar_chart(positive.head(8).set_index("Stats")[["Earnings"]])
-            display = positive.copy()
-            display["Earnings"] = display["Earnings"].apply(money_fmt)
-            display["Weight"] = display["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
-            display["Qty"] = display["Qty"].map(lambda x: f"{x:,.0f}")
-            st.dataframe(display, use_container_width=True, hide_index=True)
+            display_heatmap_table(
+                positive.head(10),
+                columns=["Stats", "Qty", "Weight", "Earnings"],
+                sort_by="Earnings",
+                ascending=False,
+            )
 
     with right:
         st.subheader("📉 Money Lost")
-        st.caption("Stats that have cost him money.")
+        st.caption("Stats that have cost him money. Heatmap: red = biggest loss, green = smallest/no loss.")
         if negative.empty:
             st.success("No money lost in negative stats.")
         else:
-            red_loss_chart(negative, limit=8)
-            display = negative.copy()
-            display["Earnings"] = display["Earnings"].apply(money_fmt)
-            display["Weight"] = display["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
-            display["Qty"] = display["Qty"].map(lambda x: f"{x:,.0f}")
-            st.dataframe(display, use_container_width=True, hide_index=True)
+            display_heatmap_table(
+                negative.head(10),
+                columns=["Stats", "Qty", "Weight", "Earnings"],
+                sort_by="Earnings",
+                ascending=True,
+            )
 
     st.divider()
     st.subheader("🎯 Fantasy Summary")
@@ -416,11 +422,12 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
         c2.success("No negative category cost yet.")
 
     st.subheader("🧾 Full Money Breakdown")
-    full = bd.copy()
-    full["Earnings"] = full["Earnings"].apply(money_fmt)
-    full["Weight"] = full["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
-    full["Qty"] = full["Qty"].map(lambda x: f"{x:,.0f}")
-    st.dataframe(full, use_container_width=True, hide_index=True)
+    display_heatmap_table(
+        bd,
+        columns=["Stats", "Qty", "Weight", "Earnings"],
+        sort_by="Earnings",
+        ascending=False,
+    )
 
 
 # -----------------------------
