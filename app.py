@@ -220,6 +220,11 @@ def set_player_and_open(player):
     st.session_state["view_radio"] = "👤 Player Report"
 
 
+def go_home():
+    st.session_state["view"] = "🏠 League Home"
+    st.session_state["view_radio"] = "🏠 League Home"
+
+
 def show_top_cards(df, category_cols, weight_map):
     top3 = df.sort_values("Total", ascending=False).head(3).reset_index(drop=True)
     medals = ["🥇", "🥈", "🥉"]
@@ -372,10 +377,11 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
     c3.metric("Team", row.get("Team", ""))
     c4.metric("Group", group_name)
 
-    if st.button("← Back to Full Standings", use_container_width=False):
-        st.session_state["view"] = "🏠 League Home"
-        st.session_state["view_radio"] = "🏠 League Home"
-        st.rerun()
+    st.button(
+        "← Back to Full Standings",
+        use_container_width=False,
+        on_click=go_home,
+    )
 
     st.divider()
 
