@@ -184,9 +184,9 @@ def top_positive_stat(row, category_cols, weight_map):
     return str(top["Stats"]), float(top["Earnings"])
 
 
-def money_table_style(df, earnings_col="Earnings"):
+def money_table_style(df, earnings_col="Earnings", cmap="RdYlGn"):
     """
-    Professional Fantasy-style heatmap tables.
+    Professional incentive-program heatmap tables.
     Highest values = green, average = yellow, lowest values = red.
     For negative-only tables, the biggest loss stays red and the smallest loss trends green.
     """
@@ -194,7 +194,7 @@ def money_table_style(df, earnings_col="Earnings"):
         return df.style
     return (
         df.style
-        .background_gradient(subset=[earnings_col], cmap="RdYlGn")
+        .background_gradient(subset=[earnings_col], cmap=cmap)
         .format({
             earnings_col: money_fmt,
             "Weight": lambda x: money_fmt(x).replace("RD$", ""),
@@ -203,7 +203,7 @@ def money_table_style(df, earnings_col="Earnings"):
     )
 
 
-def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False):
+def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False, cmap="RdYlGn"):
     if df.empty:
         st.info("No data available yet.")
         return
@@ -212,7 +212,7 @@ def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False)
         table = table.sort_values(sort_by, ascending=ascending)
     if columns:
         table = table[columns]
-    st.dataframe(money_table_style(table), use_container_width=True, hide_index=True)
+    st.dataframe(money_table_style(table, cmap=cmap), use_container_width=True, hide_index=True)
 
 def set_player_and_open(player):
     st.session_state["selected_player"] = player
@@ -248,17 +248,10 @@ def show_top_cards(df, category_cols, weight_map):
                 """,
                 unsafe_allow_html=True,
             )
-            col.button(
-                f"Open {r['Player']}",
-                key=f"top_open_{i}_{r['Player']}",
-                on_click=set_player_and_open,
-                args=(r["Player"],),
-                use_container_width=True,
-            )
 
 
 def show_top_money_sources(df, category_cols, weight_map):
-    top_players = df.sort_values("Total", ascending=False).head(5)
+    top_players = df.sort_values("Total", ascending=False).head(3)
     for _, player in top_players.iterrows():
         bd = player_breakdown(player, category_cols, weight_map)
         positive = bd[bd["Earnings"] > 0].sort_values("Earnings", ascending=False).head(5)
@@ -271,6 +264,7 @@ def show_top_money_sources(df, category_cols, weight_map):
             columns=["Stats", "Qty", "Weight", "Earnings"],
             sort_by="Earnings",
             ascending=False,
+            cmap="Greens",
         )
 
 
@@ -312,8 +306,8 @@ def show_category_leaders(df, category_cols, weight_map):
     if not positive_categories:
         return
 
-    st.subheader("📊 League Leaders by Stats")
-    st.markdown('<div class="section-note">Top performers by positive incentive stats.</div>', unsafe_allow_html=True)
+    st.subheader("📊 Stats Leaders")
+    st.markdown('<div class="section-note">Top 3 jugadores por cada stat positivo del programa.</div>', unsafe_allow_html=True)
 
     selected_categories = positive_categories[:6]
     cols = st.columns(3)
@@ -321,7 +315,7 @@ def show_category_leaders(df, category_cols, weight_map):
         with cols[idx % 3]:
             leaders = df[["Player", cat]].copy()
             leaders[cat] = pd.to_numeric(leaders[cat], errors="coerce").fillna(0)
-            leaders = leaders.sort_values(cat, ascending=False).head(5)
+            leaders = leaders.sort_values(cat, ascending=False).head(3)
             st.markdown(f"#### {cat}")
             styled_leaders = leaders.style.background_gradient(subset=[cat], cmap="RdYlGn")
             st.dataframe(styled_leaders, use_container_width=True, hide_index=True)
@@ -330,12 +324,12 @@ def show_category_leaders(df, category_cols, weight_map):
 def show_general_page(df, category_cols, money_cols, weight_map, group_name):
     st.markdown('<div class="main-title">🏆 Rangers Incentive League</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="subtitle">Fantasy-style standings report — {group_name}</div>',
+        f'<div class="subtitle">DSL 2026 Incentive Program — Texas Rangers — {group_name}</div>',
         unsafe_allow_html=True,
     )
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("League Bank", money_fmt(df["Total"].sum()))
+    c1.metric("Program Bank", money_fmt(df["Total"].sum()))
     c2.metric("Average", money_fmt(df["Total"].mean()))
     c3.metric("Leader", money_fmt(df["Total"].max()))
     c4.metric("Players", f"{len(df)}")
@@ -346,7 +340,7 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name):
 
     st.divider()
     st.subheader("💸 Where Top Performers Made Their Money")
-    st.markdown('<div class="section-note">Igual que Fantasy Football: no solo el total, sino de dónde vienen los puntos/dinero.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-note">Top performers del programa y las categorías que más aportaron a sus ganancias acumuladas.</div>', unsafe_allow_html=True)
     show_top_money_sources(df, category_cols, weight_map)
 
     st.divider()
@@ -373,7 +367,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Current Earnings", money_fmt(row["Total"]))
-    c2.metric("League Rank", f"#{int(row['Rank'])}")
+    c2.metric("Program Rank", f"#{int(row['Rank'])}")
     c3.metric("Team", row.get("Team", ""))
     c4.metric("Group", group_name)
 
@@ -388,7 +382,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
     left, right = st.columns(2)
     with left:
         st.subheader("📈 Money Earned")
-        st.caption("Stats that have added the most to his earnings. Heatmap: green = highest, yellow = average, red = lowest.")
+        st.caption("Stats que más han aportado a sus ganancias dentro del programa de incentivos DSL 2026.")
         if positive.empty:
             st.info("No positive earnings registered yet.")
         else:
@@ -401,7 +395,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
 
     with right:
         st.subheader("📉 Money Lost")
-        st.caption("Stats that have cost him money. Heatmap: red = biggest loss, green = smallest/no loss.")
+        st.caption("Stats que han generado pérdidas dentro del programa de incentivos DSL 2026.")
         if negative.empty:
             st.success("No money lost in negative stats.")
         else:
@@ -413,11 +407,11 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
             )
 
     st.divider()
-    st.subheader("🎯 Fantasy Summary")
+    st.subheader("🎯 Incentive Summary")
     c1, c2 = st.columns(2)
     if not positive.empty:
         top_strength = positive.iloc[0]
-        c1.success(f"Main Money Source: {top_strength['Stats']} — {money_fmt(top_strength['Earnings'])}")
+        c1.success(f"Main Earnings Source: {top_strength['Stats']} — {money_fmt(top_strength['Earnings'])}")
     else:
         c1.info("No main money source yet.")
 
@@ -456,7 +450,7 @@ elif DEFAULT_EXCEL_PATH.exists():
 else:
     st.markdown('<div class="main-title">🏆 Rangers Incentive League</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="subtitle">Upload the incentives Excel to generate the Fantasy-style dashboard.</div>',
+        '<div class="subtitle">Upload the incentives Excel to generate the DSL 2026 Texas Rangers incentive report.</div>',
         unsafe_allow_html=True,
     )
     st.info("No default Excel was found. Upload an Excel with the sheets 'Position Players' and 'Pitchers'.")
