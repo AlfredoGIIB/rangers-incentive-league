@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -175,19 +176,51 @@ def player_breakdown(row, category_cols, weight_map):
     return out.sort_values("Earnings", ascending=False)
 
 
+def top_positive_stat(row, category_cols, weight_map):
+    bd = player_breakdown(row, category_cols, weight_map)
+    positive = bd[bd["Earnings"] > 0].sort_values("Earnings", ascending=False)
+    if positive.empty:
+        return "—", 0
+    top = positive.iloc[0]
+    return str(top["Stats"]), float(top["Earnings"])
+
+
+def red_loss_chart(data, limit=8):
+    chart_data = data.head(limit).copy()
+    chart_data["Loss"] = chart_data["Earnings"].abs()
+    chart_data = chart_data.sort_values("Loss", ascending=True)
+
+    chart = (
+        alt.Chart(chart_data)
+        .mark_bar(color="#dc2626")
+        .encode(
+            x=alt.X("Loss:Q", title="Earnings lost", axis=alt.Axis(format=",.0f")),
+            y=alt.Y("Stats:N", sort=None, title="Stats"),
+            tooltip=[
+                alt.Tooltip("Stats:N", title="Stats"),
+                alt.Tooltip("Earnings:Q", title="Earnings", format=",.0f"),
+                alt.Tooltip("Qty:Q", title="Qty", format=",.0f"),
+            ],
+        )
+        .properties(height=max(260, len(chart_data) * 34))
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+
 def set_player_and_open(player):
     st.session_state["selected_player"] = player
     st.session_state["view"] = "👤 Player Report"
     st.session_state["view_radio"] = "👤 Player Report"
 
 
-def show_top_cards(df):
+def show_top_cards(df, category_cols, weight_map):
     top3 = df.sort_values("Total", ascending=False).head(3).reset_index(drop=True)
     medals = ["🥇", "🥈", "🥉"]
     cols = st.columns(3)
     for i, col in enumerate(cols):
         if i < len(top3):
             r = top3.iloc[i]
+            top_stat, top_earnings = top_positive_stat(r, category_cols, weight_map)
             col.markdown(
                 f"""
                 <div class="league-card">
@@ -196,6 +229,9 @@ def show_top_cards(df):
                     <div class="small-label">Team {r.get('Team', '')}</div>
                     <div style="height:10px"></div>
                     <div class="metric-big">{money_fmt(r['Total'])}</div>
+                    <div style="height:8px"></div>
+                    <div class="small-label">Biggest Contributor</div>
+                    <div class="positive-money">{top_stat} — {money_fmt(top_earnings)}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -228,10 +264,21 @@ def show_top_money_sources(df, category_cols, weight_map):
         st.dataframe(display, use_container_width=True, hide_index=True)
 
 
-def show_full_standings(df):
+def show_full_standings(df, category_cols, weight_map):
     standings = df[["Rank", "Player", "Team", "Total"]].sort_values("Rank").copy()
-    standings["Total"] = standings["Total"].apply(money_fmt)
-    st.dataframe(standings, use_container_width=True, hide_index=True)
+    contributors = df.apply(lambda r: top_positive_stat(r, category_cols, weight_map), axis=1)
+    contributor_map = {
+        player: f"{stat} ({money_fmt(value)})" if stat != "—" else "—"
+        for player, (stat, value) in zip(df["Player"], contributors)
+    }
+    standings["Biggest Contributor"] = standings["Player"].map(contributor_map)
+
+    styled = (
+        standings.style
+        .background_gradient(subset=["Total"], cmap="RdYlGn")
+        .format({"Total": money_fmt})
+    )
+    st.dataframe(styled, use_container_width=True, hide_index=True)
 
     st.markdown("### Open Individual Report")
     st.caption("Selecciona un jugador para abrir su reporte individual.")
@@ -284,7 +331,7 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name):
 
     st.divider()
     st.subheader("🔥 Top Performers")
-    show_top_cards(df)
+    show_top_cards(df, category_cols, weight_map)
 
     st.divider()
     st.subheader("💸 Where Top Performers Made Their Money")
@@ -296,7 +343,7 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name):
 
     st.divider()
     st.subheader("📋 Full Standings")
-    show_full_standings(df)
+    show_full_standings(df, category_cols, weight_map)
 
 
 def show_player_page(df, category_cols, weight_map, selected_player, group_name):
@@ -346,9 +393,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name)
         if negative.empty:
             st.success("No money lost in negative stats.")
         else:
-            chart_neg = negative.copy()
-            chart_neg["Loss"] = chart_neg["Earnings"].abs()
-            st.bar_chart(chart_neg.head(8).set_index("Stats")[["Loss"]])
+            red_loss_chart(negative, limit=8)
             display = negative.copy()
             display["Earnings"] = display["Earnings"].apply(money_fmt)
             display["Weight"] = display["Weight"].apply(lambda x: money_fmt(x).replace("RD$", ""))
