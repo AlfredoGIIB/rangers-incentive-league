@@ -127,8 +127,14 @@ st.markdown(
         font-weight: 800;
         text-decoration: none;
     }
+    a {
+        text-decoration: none !important;
+    }
+    a:hover {
+        text-decoration: none !important;
+    }
     .heatmap-table a:hover {
-        text-decoration: underline;
+        text-decoration: none !important;
         color: #BA0C2F;
     }
     </style>
@@ -160,6 +166,36 @@ def show_program_banner(group_name=None):
         """,
         unsafe_allow_html=True,
     )
+
+
+def set_group(group_name):
+    st.session_state["selected_sheet"] = group_name
+    st.query_params.clear()
+    st.query_params["group"] = group_name
+
+
+def show_group_nav(sheet_options, selected_sheet):
+    if not sheet_options:
+        return
+
+    label_map = {
+        "Position Players": "⚾ Position Players",
+        "Pitchers": "🥎 Pitchers",
+    }
+
+    cols = st.columns(len(sheet_options))
+    for col, sheet in zip(cols, sheet_options):
+        label = label_map.get(sheet, sheet)
+        with col:
+            st.button(
+                label,
+                key=f"nav_{sheet}",
+                use_container_width=True,
+                type="primary" if sheet == selected_sheet else "secondary",
+                on_click=set_group,
+                args=(sheet,),
+            )
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 
 def detect_header_and_weight_rows(raw):
@@ -464,8 +500,9 @@ def show_category_leaders(df, category_cols, weight_map, group_name):
             )
 
 
-def show_general_page(df, category_cols, money_cols, weight_map, group_name):
+def show_general_page(df, category_cols, money_cols, weight_map, group_name, sheet_options):
     show_program_banner(group_name)
+    show_group_nav(sheet_options, group_name)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Program Bank", money_fmt(df["Total"].sum()))
@@ -492,11 +529,14 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name):
     st.markdown('<div style="color:#857874;font-size:13px;margin-top:20px;text-align:center;">Texas Rangers Baseball Club · DSL 2026 Incentive Program</div>', unsafe_allow_html=True)
 
 
-def show_player_page(df, category_cols, weight_map, selected_player, group_name):
+def show_player_page(df, category_cols, weight_map, selected_player, group_name, sheet_options):
     player_rows = df[df["Player"] == selected_player]
     if player_rows.empty:
         st.error("No encontré ese jugador.")
         return
+
+    show_program_banner(group_name)
+    show_group_nav(sheet_options, group_name)
 
     row = player_rows.iloc[0]
     bd = player_breakdown(row, category_cols, weight_map)
@@ -611,11 +651,13 @@ query_group = st.query_params.get("group")
 query_player = st.query_params.get("player")
 query_view = st.query_params.get("view")
 
-sheet_index = 0
-if query_group in sheet_options:
-    sheet_index = sheet_options.index(query_group)
+if "selected_sheet" not in st.session_state or st.session_state["selected_sheet"] not in sheet_options:
+    st.session_state["selected_sheet"] = sheet_options[0]
 
-selected_sheet = st.sidebar.radio("Group", sheet_options, index=sheet_index)
+if query_group in sheet_options:
+    st.session_state["selected_sheet"] = query_group
+
+selected_sheet = st.session_state["selected_sheet"]
 
 try:
     df, category_cols, money_cols, weight_map = process_sheet(excel_source, selected_sheet)
@@ -626,6 +668,6 @@ except Exception as e:
 players = df.sort_values("Total", ascending=False)["Player"].tolist()
 
 if query_view == "player" and query_player in players:
-    show_player_page(df, category_cols, weight_map, query_player, selected_sheet)
+    show_player_page(df, category_cols, weight_map, query_player, selected_sheet, sheet_options)
 else:
-    show_general_page(df, category_cols, money_cols, weight_map, selected_sheet)
+    show_general_page(df, category_cols, money_cols, weight_map, selected_sheet, sheet_options)
