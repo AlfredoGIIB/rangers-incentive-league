@@ -137,6 +137,18 @@ st.markdown(
         text-decoration: none !important;
         color: #BA0C2F;
     }
+    .top-nav-label {
+        color: #857874;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        margin: 2px 0 6px 0;
+    }
+    .top-nav-wrap {
+        margin-top: -4px;
+        margin-bottom: 14px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -294,6 +306,7 @@ def show_language_nav():
         st.button("ES", key="lang_es", use_container_width=True, type="primary" if get_lang() == "ES" else "secondary", on_click=set_language, args=("ES",))
     with c2:
         st.button("EN", key="lang_en", use_container_width=True, type="primary" if get_lang() == "EN" else "secondary", on_click=set_language, args=("EN",))
+
 def money_fmt(value):
     try:
         value = float(value)
@@ -345,6 +358,53 @@ def show_group_nav(sheet_options, selected_sheet):
                 args=(sheet,),
             )
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+
+def show_top_nav(sheet_options, selected_sheet):
+    """Professional one-line navigation for group and language."""
+    if not sheet_options:
+        return
+
+    label_map = {
+        "Position Players": t("position_players"),
+        "Pitchers": t("pitchers"),
+    }
+
+    st.markdown('<div class="top-nav-wrap">', unsafe_allow_html=True)
+    cols = st.columns([2.8, 2.8, 0.7, 0.7])
+
+    # Group navigation
+    for idx, sheet in enumerate(sheet_options[:2]):
+        with cols[idx]:
+            st.button(
+                label_map.get(sheet, sheet),
+                key=f"top_nav_{sheet}",
+                use_container_width=True,
+                type="primary" if sheet == selected_sheet else "secondary",
+                on_click=set_group,
+                args=(sheet,),
+            )
+
+    # Language navigation
+    with cols[2]:
+        st.button(
+            "ES",
+            key="top_lang_es",
+            use_container_width=True,
+            type="primary" if get_lang() == "ES" else "secondary",
+            on_click=set_language,
+            args=("ES",),
+        )
+    with cols[3]:
+        st.button(
+            "EN",
+            key="top_lang_en",
+            use_container_width=True,
+            type="primary" if get_lang() == "EN" else "secondary",
+            on_click=set_language,
+            args=("EN",),
+        )
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def detect_header_and_weight_rows(raw):
@@ -651,8 +711,7 @@ def show_category_leaders(df, category_cols, weight_map, group_name):
 
 def show_general_page(df, category_cols, money_cols, weight_map, group_name, sheet_options):
     show_program_banner(group_name)
-    show_language_nav()
-    show_group_nav(sheet_options, group_name)
+    show_top_nav(sheet_options, group_name)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(t("program_bank"), money_fmt(df["Total"].sum()))
@@ -686,8 +745,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name,
         return
 
     show_program_banner(group_name)
-    show_language_nav()
-    show_group_nav(sheet_options, group_name)
+    show_top_nav(sheet_options, group_name)
 
     row = player_rows.iloc[0]
     bd = player_breakdown(row, category_cols, weight_map)
