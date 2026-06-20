@@ -1,12 +1,13 @@
 from pathlib import Path
 from urllib.parse import quote
+from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 
 st.set_page_config(
     page_title="Rangers Incentive League",
-    page_icon="🏆",
+    page_icon=None,
     layout="wide",
 )
 
@@ -16,6 +17,10 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    html, body, [class*="css"], .stApp, .stMarkdown, .stButton button, .stMetric {
+        font-family: Inter, Aptos, "Segoe UI", Arial, sans-serif !important;
+    }
     .rangers-banner {
         background: #002D72;
         color: white;
@@ -44,6 +49,28 @@ st.markdown(
         font-weight: 700;
         color: rgba(255,255,255,.9);
         margin-top: 8px;
+    }
+    .banner-updated {
+        font-size: 12px;
+        font-weight: 700;
+        color: rgba(255,255,255,.82);
+        margin-top: 10px;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+    }
+    .language-bar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-bottom: 8px;
+        gap: 8px;
+    }
+    .language-caption {
+        font-size: 12px;
+        color: #857874;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .06em;
     }
     .main-title {
         font-size: 38px;
@@ -149,6 +176,20 @@ st.markdown(
         margin-top: -4px;
         margin-bottom: 14px;
     }
+    div.stButton > button {
+        border-radius: 10px;
+        font-weight: 800;
+        letter-spacing: .02em;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #857874;
+        font-weight: 800;
+    }
+    h1, h2, h3, h4 {
+        color: #002D72 !important;
+        font-weight: 850 !important;
+        letter-spacing: -.02em;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -163,18 +204,18 @@ TEXT = {
         "app_title": "Rangers Incentive League",
         "banner_kicker": "Texas Rangers",
         "banner_title": "DSL 2026 Programa de Incentivos",
-        "position_players": "⚾ Jugadores de Posición",
-        "pitchers": "🥎 Lanzadores",
+        "position_players": "Jugadores de Posición",
+        "pitchers": "Lanzadores",
         "program_bank": "Banco del Programa",
         "average": "Promedio",
         "leader": "Líder",
         "players": "Jugadores",
-        "top_performers": "🔥 Mejores Rendimientos",
-        "primary_sources": "💸 Fuentes Principales de Ganancias",
+        "top_performers": "Mejores Rendimientos",
+        "primary_sources": "Fuentes Principales de Ganancias",
         "primary_sources_note": "Top 3 jugadores y los stats que más han aportado a sus ganancias acumuladas dentro del programa.",
-        "stats_leaders": "📊 Líderes por Stats",
+        "stats_leaders": "Líderes por Stats",
         "stats_leaders_note": "Top 3 jugadores por cada stat positivo del programa de incentivos DSL 2026.",
-        "full_standings": "📋 Ranking General",
+        "full_standings": "Ranking General",
         "full_standings_note": "Haz click en cualquier nombre para abrir el reporte individual del jugador.",
         "team": "Equipo",
         "biggest_contributor": "Mayor Aporte",
@@ -182,21 +223,21 @@ TEXT = {
         "current_earnings": "Ganancias Actuales",
         "program_rank": "Ranking del Programa",
         "group": "Grupo",
-        "back": "← Volver al Ranking General",
-        "earnings_sources": "📈 Fuentes de Ganancias",
+        "back": "Volver al Ranking General",
+        "earnings_sources": "Fuentes de Ganancias",
         "earnings_sources_note": "Stats que más han aportado a sus ganancias dentro del programa de incentivos DSL 2026.",
-        "deductions": "📉 Deducciones",
+        "deductions": "Deducciones",
         "deductions_note": "Stats que han generado pérdidas dentro del programa de incentivos DSL 2026.",
         "no_positive": "Todavía no hay ganancias positivas registradas.",
         "no_deductions": "No hay deducciones registradas.",
-        "player_summary": "🎯 Resumen de Incentivos del Jugador",
+        "player_summary": "Resumen de Incentivos del Jugador",
         "primary_source": "Fuente Principal de Ganancias",
         "largest_deduction": "Mayor Deducción",
         "no_main_source": "Todavía no hay una fuente principal de ganancias.",
-        "full_breakdown": "🧾 Desglose Completo de Ganancias",
+        "full_breakdown": "Desglose Completo de Ganancias",
         "upload_label": "Subir otro Excel de incentivos",
-        "using_uploaded": "Usando Excel subido",
-        "using_default": "Usando Excel predeterminado",
+        "using_uploaded": "Excel subido activo",
+        "using_default": "Excel predeterminado activo",
         "upload_needed": "Sube el Excel de incentivos para generar el reporte DSL 2026 de Texas Rangers.",
         "no_default": "No se encontró un Excel predeterminado. Sube un Excel con las hojas 'Position Players' y 'Pitchers'.",
         "read_error": "No pude leer el archivo",
@@ -205,6 +246,7 @@ TEXT = {
         "no_data": "Todavía no hay datos disponibles.",
         "footer": "Texas Rangers Baseball Club · DSL 2026 Programa de Incentivos",
         "language": "Idioma",
+        "updated": "Actualizado",
         "col_rank": "Rank",
         "col_player": "Jugador",
         "col_team": "Equipo",
@@ -219,18 +261,18 @@ TEXT = {
         "app_title": "Rangers Incentive League",
         "banner_kicker": "Texas Rangers",
         "banner_title": "DSL 2026 Incentive Program",
-        "position_players": "⚾ Position Players",
-        "pitchers": "🥎 Pitchers",
+        "position_players": "Position Players",
+        "pitchers": "Pitchers",
         "program_bank": "Program Bank",
         "average": "Average",
         "leader": "Leader",
         "players": "Players",
-        "top_performers": "🔥 Top Performers",
-        "primary_sources": "💸 Primary Earnings Sources",
+        "top_performers": "Top Performers",
+        "primary_sources": "Primary Earnings Sources",
         "primary_sources_note": "Top 3 players and the stats that have contributed the most to their accumulated earnings in the program.",
-        "stats_leaders": "📊 Stats Leaders",
+        "stats_leaders": "Stats Leaders",
         "stats_leaders_note": "Top 3 players for each positive stat in the DSL 2026 incentive program.",
-        "full_standings": "📋 Full Standings",
+        "full_standings": "Full Standings",
         "full_standings_note": "Click any player name to open the individual report.",
         "team": "Team",
         "biggest_contributor": "Biggest Contributor",
@@ -238,21 +280,21 @@ TEXT = {
         "current_earnings": "Current Earnings",
         "program_rank": "Program Rank",
         "group": "Group",
-        "back": "← Back to Full Standings",
-        "earnings_sources": "📈 Earnings Sources",
+        "back": "Back to Full Standings",
+        "earnings_sources": "Earnings Sources",
         "earnings_sources_note": "Stats that have contributed the most to the player's earnings in the DSL 2026 incentive program.",
-        "deductions": "📉 Earnings Deductions",
+        "deductions": "Earnings Deductions",
         "deductions_note": "Stats that have generated deductions in the DSL 2026 incentive program.",
         "no_positive": "No positive earnings registered yet.",
         "no_deductions": "No earnings deductions registered.",
-        "player_summary": "🎯 Player Incentive Summary",
+        "player_summary": "Player Incentive Summary",
         "primary_source": "Primary Earnings Source",
         "largest_deduction": "Largest Deduction",
         "no_main_source": "No main earnings source yet.",
-        "full_breakdown": "🧾 Full Earnings Breakdown",
+        "full_breakdown": "Full Earnings Breakdown",
         "upload_label": "Upload a different incentives Excel",
-        "using_uploaded": "Using uploaded Excel",
-        "using_default": "Using default Excel",
+        "using_uploaded": "Uploaded Excel active",
+        "using_default": "Default Excel active",
         "upload_needed": "Upload the incentives Excel to generate the DSL 2026 Texas Rangers incentive report.",
         "no_default": "No default Excel was found. Upload an Excel with the sheets 'Position Players' and 'Pitchers'.",
         "read_error": "Could not read the file",
@@ -261,6 +303,7 @@ TEXT = {
         "no_data": "No data available yet.",
         "footer": "Texas Rangers Baseball Club · DSL 2026 Incentive Program",
         "language": "Language",
+        "updated": "Updated",
         "col_rank": "Rank",
         "col_player": "Player",
         "col_team": "Team",
@@ -281,6 +324,15 @@ def get_lang():
 def t(key):
     return TEXT[get_lang()].get(key, key)
 
+
+def display_group_name(group_name):
+    if group_name == "Position Players":
+        return t("position_players")
+    if group_name == "Pitchers":
+        return t("pitchers")
+    return str(group_name)
+
+
 def col_label(name):
     labels = {
         "Rank": t("col_rank"),
@@ -299,13 +351,16 @@ def set_language(lang):
     st.session_state["language"] = lang
 
 def show_language_nav():
-    c0, c1, c2 = st.columns([8, 1, 1])
+    st.markdown('<div class="language-bar">', unsafe_allow_html=True)
+    c0, c1, c2 = st.columns([8.8, 0.6, 0.6])
     with c0:
-        st.markdown(f'<div style="color:#857874;font-weight:800;padding-top:8px;">{t("language")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="language-caption">{t("language")}</div>', unsafe_allow_html=True)
     with c1:
-        st.button("ES", key="lang_es", use_container_width=True, type="primary" if get_lang() == "ES" else "secondary", on_click=set_language, args=("ES",))
+        st.button("🇪🇸", key="lang_es", use_container_width=True, type="primary" if get_lang() == "ES" else "secondary", on_click=set_language, args=("ES",))
     with c2:
-        st.button("EN", key="lang_en", use_container_width=True, type="primary" if get_lang() == "EN" else "secondary", on_click=set_language, args=("EN",))
+        st.button("🇺🇸", key="lang_en", use_container_width=True, type="primary" if get_lang() == "EN" else "secondary", on_click=set_language, args=("EN",))
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 def money_fmt(value):
     try:
@@ -316,14 +371,16 @@ def money_fmt(value):
     return f"{sign}RD${abs(value):,.0f}"
 
 
-def show_program_banner(group_name=None):
-    group_html = f" — {html_escape(group_name)}" if group_name else ""
+def show_program_banner(group_name=None, updated_label=None):
+    group_html = f" — {html_escape(display_group_name(group_name))}" if group_name else ""
+    updated_html = f'<div class="banner-updated">{t("updated")}: {html_escape(updated_label)}</div>' if updated_label else ""
     st.markdown(
         f"""
         <div class="rangers-banner">
             <div class="banner-kicker">{t("banner_kicker")}</div>
             <div class="banner-title">{t("banner_title")}</div>
             <div class="banner-subtitle">{t("app_title")}{group_html}</div>
+            {updated_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -361,7 +418,7 @@ def show_group_nav(sheet_options, selected_sheet):
 
 
 def show_top_nav(sheet_options, selected_sheet):
-    """Professional one-line navigation for group and language."""
+    """Professional one-line navigation for player group."""
     if not sheet_options:
         return
 
@@ -371,9 +428,8 @@ def show_top_nav(sheet_options, selected_sheet):
     }
 
     st.markdown('<div class="top-nav-wrap">', unsafe_allow_html=True)
-    cols = st.columns([2.8, 2.8, 0.7, 0.7])
+    cols = st.columns([1, 1])
 
-    # Group navigation
     for idx, sheet in enumerate(sheet_options[:2]):
         with cols[idx]:
             st.button(
@@ -384,26 +440,6 @@ def show_top_nav(sheet_options, selected_sheet):
                 on_click=set_group,
                 args=(sheet,),
             )
-
-    # Language navigation
-    with cols[2]:
-        st.button(
-            "ES",
-            key="top_lang_es",
-            use_container_width=True,
-            type="primary" if get_lang() == "ES" else "secondary",
-            on_click=set_language,
-            args=("ES",),
-        )
-    with cols[3]:
-        st.button(
-            "EN",
-            key="top_lang_en",
-            use_container_width=True,
-            type="primary" if get_lang() == "EN" else "secondary",
-            on_click=set_language,
-            args=("EN",),
-        )
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -612,12 +648,12 @@ def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False,
 
 def clear_query_and_go_home():
     st.query_params.clear()
-    st.session_state["view"] = "🏠 League Home"
+    st.session_state["view"] = "home"
 
 
 def show_top_cards(df, category_cols, weight_map, group_name):
     top3 = df.sort_values("Total", ascending=False).head(3).reset_index(drop=True)
-    medals = ["🥇", "🥈", "🥉"]
+    rank_labels = ["#1", "#2", "#3"]
     cols = st.columns(3)
     for i, col in enumerate(cols):
         if i < len(top3):
@@ -628,9 +664,9 @@ def show_top_cards(df, category_cols, weight_map, group_name):
             col.markdown(
                 f"""
                 <div class="league-card">
-                    <div class="rank-number">{medals[i]} #{i+1}</div>
+                    <div class="rank-number">{rank_labels[i]}</div>
                     <div class="player-name"><a href="{url}" target="_self" style="color:#002D72;text-decoration:none;">{name}</a></div>
-                    <div class="small-label">Team {html_escape(r.get('Team', ''))}</div>
+                    <div class="small-label">{t("team")} {html_escape(r.get('Team', ''))}</div>
                     <div style="height:10px"></div>
                     <div class="metric-big">{money_fmt(r['Total'])}</div>
                     <div style="height:8px"></div>
@@ -709,8 +745,9 @@ def show_category_leaders(df, category_cols, weight_map, group_name):
             )
 
 
-def show_general_page(df, category_cols, money_cols, weight_map, group_name, sheet_options):
-    show_program_banner(group_name)
+def show_general_page(df, category_cols, money_cols, weight_map, group_name, sheet_options, updated_label=None):
+    show_language_nav()
+    show_program_banner(group_name, updated_label)
     show_top_nav(sheet_options, group_name)
 
     c1, c2, c3, c4 = st.columns(4)
@@ -738,13 +775,14 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name, she
     st.markdown(f'<div style="color:#857874;font-size:13px;margin-top:20px;text-align:center;">{t("footer")}</div>', unsafe_allow_html=True)
 
 
-def show_player_page(df, category_cols, weight_map, selected_player, group_name, sheet_options):
+def show_player_page(df, category_cols, weight_map, selected_player, group_name, sheet_options, updated_label=None):
     player_rows = df[df["Player"] == selected_player]
     if player_rows.empty:
         st.error(t("not_found"))
         return
 
-    show_program_banner(group_name)
+    show_language_nav()
+    show_program_banner(group_name, updated_label)
     show_top_nav(sheet_options, group_name)
 
     row = player_rows.iloc[0]
@@ -752,14 +790,14 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name,
     positive = bd[bd["Earnings"] > 0].sort_values("Earnings", ascending=False)
     negative = bd[bd["Earnings"] < 0].sort_values("Earnings")
 
-    st.markdown(f'<div class="main-title">👤 {html_escape(selected_player)}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="subtitle">{t("individual_report")} — {group_name}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="main-title">{html_escape(selected_player)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="subtitle">{t("individual_report")} — {display_group_name(group_name)}</div>', unsafe_allow_html=True)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(t("current_earnings"), money_fmt(row["Total"]))
     c2.metric(t("program_rank"), f"#{int(row['Rank'])}")
     c3.metric(t("team"), row.get("Team", ""))
-    c4.metric(t("group"), group_name)
+    c4.metric(t("group"), display_group_name(group_name))
 
     st.markdown(f"[{t("back")}](?group={quote(str(group_name))})")
 
@@ -828,7 +866,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name,
 # -----------------------------
 DEFAULT_EXCEL_PATH = Path(__file__).with_name("Incentives System - DR TEX 2026.xlsx")
 
-st.sidebar.title("🏆 Rangers Incentive League")
+st.sidebar.title("Rangers Incentive League")
 uploaded_file = st.sidebar.file_uploader(t("upload_label"), type=["xlsx"])
 
 if uploaded_file is not None:
@@ -845,6 +883,21 @@ else:
     )
     st.info(t("no_default"))
     st.stop()
+
+
+def get_updated_label(source):
+    try:
+        if isinstance(source, (str, Path)):
+            dt = datetime.fromtimestamp(Path(source).stat().st_mtime)
+        else:
+            dt = datetime.now()
+        if get_lang() == "ES":
+            return dt.strftime("%d/%m/%Y")
+        return dt.strftime("%m/%d/%Y")
+    except Exception:
+        return datetime.now().strftime("%d/%m/%Y" if get_lang() == "ES" else "%m/%d/%Y")
+
+updated_label = get_updated_label(excel_source)
 
 try:
     sheet_names = pd.ExcelFile(excel_source).sheet_names
@@ -877,6 +930,6 @@ except Exception as e:
 players = df.sort_values("Total", ascending=False)["Player"].tolist()
 
 if query_view == "player" and query_player in players:
-    show_player_page(df, category_cols, weight_map, query_player, selected_sheet, sheet_options)
+    show_player_page(df, category_cols, weight_map, query_player, selected_sheet, sheet_options, updated_label)
 else:
-    show_general_page(df, category_cols, money_cols, weight_map, selected_sheet, sheet_options)
+    show_general_page(df, category_cols, money_cols, weight_map, selected_sheet, sheet_options, updated_label)
