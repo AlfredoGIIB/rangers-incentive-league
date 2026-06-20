@@ -1,9 +1,17 @@
 from pathlib import Path
 from urllib.parse import quote
 from datetime import datetime
+from io import BytesIO
 
 import pandas as pd
 import streamlit as st
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 
 st.set_page_config(
     page_title="Rangers Incentive League",
@@ -280,6 +288,11 @@ TEXT = {
         "footer": "Texas Rangers Baseball Club · DSL 2026 Programa de Incentivos",
         "language": "Idioma",
         "updated": "Actualizado",
+        "export_summary": "Exportar Resumen Ejecutivo",
+        "export_help": "Descarga un PDF ejecutivo con jugadores de posición y lanzadores.",
+        "summary_pdf_name": "resumen_ejecutivo_incentivos_rangers.pdf",
+        "top_performers_pdf": "Mejores Rendimientos",
+        "full_items_pdf": "Ranking General con Items",
         "col_rank": "Rank",
         "col_player": "Jugador",
         "col_team": "Equipo",
@@ -337,6 +350,11 @@ TEXT = {
         "footer": "Texas Rangers Baseball Club · DSL 2026 Incentive Program",
         "language": "Language",
         "updated": "Updated",
+        "export_summary": "Export Executive Summary",
+        "export_help": "Download an executive PDF with position players and pitchers.",
+        "summary_pdf_name": "rangers_incentives_executive_summary.pdf",
+        "top_performers_pdf": "Top Performers",
+        "full_items_pdf": "Full Standings with Items",
         "col_rank": "Rank",
         "col_player": "Player",
         "col_team": "Team",
@@ -364,6 +382,24 @@ def display_group_name(group_name):
     if group_name == "Pitchers":
         return t("pitchers")
     return str(group_name)
+
+
+def team_display(team_value):
+    value = str(team_value).strip()
+    if value.upper() == "R":
+        return "Rojo" if get_lang() == "ES" else "Red"
+    if value.upper() == "B":
+        return "Azul" if get_lang() == "ES" else "Blue"
+    return value
+
+
+def team_display_static(team_value, lang="ES"):
+    value = str(team_value).strip()
+    if value.upper() == "R":
+        return "Rojo" if lang == "ES" else "Red"
+    if value.upper() == "B":
+        return "Azul" if lang == "ES" else "Blue"
+    return value
 
 
 def col_label(name):
@@ -487,6 +523,8 @@ def detect_header_and_weight_rows(raw):
 
 
 def process_sheet(excel_file, sheet_name):
+    if hasattr(excel_file, "seek"):
+        excel_file.seek(0)
     raw = pd.read_excel(excel_file, sheet_name=sheet_name, header=None)
     header_row, weight_row = detect_header_and_weight_rows(raw)
 
@@ -662,6 +700,8 @@ def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False,
             if c in player_link_cols and group_name:
                 display_val = html_escape(val)
                 cell = f'<a href="{player_link(val, group_name)}" target="_self">{display_val}</a>'
+            elif c == "Team":
+                cell = html_escape(team_display(val))
             elif c in ["Total", "Earnings"]:
                 cell = money_fmt(val)
             elif c == "Weight":
@@ -678,6 +718,178 @@ def display_heatmap_table(df, columns=None, sort_by="Earnings", ascending=False,
     html.append("</tbody></table>")
     st.markdown("".join(html), unsafe_allow_html=True)
 
+
+
+def pdf_money_fmt(value):
+    try:
+        value = float(value)
+    except Exception:
+        value = 0
+    sign = "-" if value < 0 else ""
+    return f"{sign}RD${abs(value):,.0f}"
+
+
+def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        rightMargin=0.28 * inch,
+        leftMargin=0.28 * inch,
+        topMargin=0.28 * inch,
+        bottomMargin=0.28 * inch,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "RangersTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=16,
+        leading=18,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+        spaceAfter=4,
+    )
+    subtitle_style = ParagraphStyle(
+        "RangersSubtitle",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8,
+        leading=10,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+    )
+    section_style = ParagraphStyle(
+        "Section",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        leading=12,
+        textColor=colors.HexColor("#002D72"),
+        spaceBefore=6,
+        spaceAfter=4,
+    )
+    cell_style = ParagraphStyle(
+        "Cell",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=5.3,
+        leading=6.1,
+        textColor=colors.HexColor("#1f2937"),
+        alignment=TA_LEFT,
+    )
+    cell_bold_style = ParagraphStyle(
+        "CellBold",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+        textColor=colors.HexColor("#002D72"),
+    )
+
+    def pcell(value, bold=False):
+        return Paragraph(str(value), cell_bold_style if bold else cell_style)
+
+    story = []
+    pages = [s for s in ["Position Players", "Pitchers"] if s in sheet_options]
+    if not pages:
+        pages = sheet_options[:2]
+
+    for page_idx, sheet in enumerate(pages):
+        df, category_cols, money_cols, weight_map = process_sheet(excel_source, sheet)
+        group_label = ("Jugadores de Posición" if sheet == "Position Players" else "Lanzadores") if lang == "ES" else ("Position Players" if sheet == "Position Players" else "Pitchers")
+        header_title = "DSL 2026 PROGRAMA DE INCENTIVOS" if lang == "ES" else "DSL 2026 INCENTIVE PROGRAM"
+        header_subtitle = f"Texas Rangers Baseball Club · {group_label} · {(('Actualizado' if lang == 'ES' else 'Updated') + ': ' + updated_label)}"
+        header = Table([[Paragraph(header_title, title_style)], [Paragraph(header_subtitle, subtitle_style)]], colWidths=[10.4 * inch])
+        header.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#002D72")),
+            ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#002D72")),
+            ("LINEBELOW", (0, -1), (-1, -1), 3, colors.HexColor("#BA0C2F")),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]))
+        story.append(header)
+        story.append(Spacer(1, 0.08 * inch))
+
+        story.append(Paragraph(t("top_performers_pdf"), section_style))
+        top = df.sort_values("Total", ascending=False).head(3).copy()
+        top_rows = [["Rank", "Player" if lang == "EN" else "Jugador", "Team" if lang == "EN" else "Equipo", "Earnings" if lang == "EN" else "Ganancias", "Biggest Contributor" if lang == "EN" else "Mayor Aporte"]]
+        for _, r in top.iterrows():
+            stat, value = top_positive_stat(r, category_cols, weight_map)
+            top_rows.append([
+                f"#{int(r['Rank'])}",
+                str(r["Player"]),
+                team_display_static(r.get("Team", ""), lang),
+                pdf_money_fmt(r["Total"]),
+                f"{stat} ({pdf_money_fmt(value)})" if stat != "—" else "—",
+            ])
+        top_table = Table(top_rows, colWidths=[0.5*inch, 2.2*inch, 0.75*inch, 1.2*inch, 2.4*inch], repeatRows=1)
+        top_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#002D72")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#857874")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7f7f7")]),
+            ("TEXTCOLOR", (3, 1), (3, -1), colors.HexColor("#15803d")),
+            ("FONTNAME", (3, 1), (3, -1), "Helvetica-Bold"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(top_table)
+        story.append(Spacer(1, 0.08 * inch))
+
+        story.append(Paragraph(t("full_items_pdf"), section_style))
+        money_matrix = []
+        headers = ["Rank", "Player" if lang == "EN" else "Jugador", "Team" if lang == "EN" else "Equipo", "Total"] + [str(c) for c in category_cols]
+        money_matrix.append([pcell(h, bold=True) for h in headers])
+        full = df.sort_values("Rank").copy()
+        for _, r in full.iterrows():
+            row = [pcell(f"#{int(r['Rank'])}"), pcell(r["Player"], bold=True), pcell(team_display_static(r.get("Team", ""), lang)), pcell(pdf_money_fmt(r["Total"]), bold=True)]
+            for c in category_cols:
+                w = weight_map.get(c, 0)
+                qty = float(r[c]) if pd.notna(r[c]) else 0
+                val = qty * (0 if pd.isna(w) else w)
+                row.append(pcell(pdf_money_fmt(val) if val else "—"))
+            money_matrix.append(row)
+
+        page_width = 10.4 * inch
+        fixed = 0.42*inch + 1.55*inch + 0.52*inch + 0.78*inch
+        stat_w = max(0.38*inch, (page_width - fixed) / max(1, len(category_cols)))
+        col_widths = [0.42*inch, 1.55*inch, 0.52*inch, 0.78*inch] + [stat_w] * len(category_cols)
+        item_table = Table(money_matrix, colWidths=col_widths, repeatRows=1)
+        ts = [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#002D72")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#857874")),
+            ("FONTSIZE", (0, 0), (-1, -1), 5.2),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+            ("TEXTCOLOR", (3, 1), (3, -1), colors.HexColor("#002D72")),
+            ("FONTNAME", (1, 1), (1, -1), "Helvetica-Bold"),
+            ("FONTNAME", (3, 1), (3, -1), "Helvetica-Bold"),
+            ("TOPPADDING", (0, 0), (-1, -1), 2.2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2.2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2.2),
+        ]
+        # Color positive/negative item cells for fast executive scanning.
+        for ridx, (_, r) in enumerate(full.iterrows(), start=1):
+            for cidx, c in enumerate(category_cols, start=4):
+                w = weight_map.get(c, 0)
+                qty = float(r[c]) if pd.notna(r[c]) else 0
+                val = qty * (0 if pd.isna(w) else w)
+                if val > 0:
+                    ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#15803d")))
+                elif val < 0:
+                    ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#BA0C2F")))
+        item_table.setStyle(TableStyle(ts))
+        story.append(item_table)
+        if page_idx < len(pages) - 1:
+            story.append(PageBreak())
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 def clear_query_and_go_home():
     st.query_params.clear()
@@ -699,7 +911,7 @@ def show_top_cards(df, category_cols, weight_map, group_name):
                 <div class="league-card">
                     <div class="rank-number">{rank_labels[i]}</div>
                     <div class="player-name"><a href="{url}" target="_self" style="color:#002D72;text-decoration:none;">{name}</a></div>
-                    <div class="small-label">{t("team")} {html_escape(r.get('Team', ''))}</div>
+                    <div class="small-label">{t("team")} {html_escape(team_display(r.get('Team', '')))}</div>
                     <div style="height:10px"></div>
                     <div class="metric-big">{money_fmt(r['Total'])}</div>
                     <div style="height:8px"></div>
@@ -778,7 +990,7 @@ def show_category_leaders(df, category_cols, weight_map, group_name):
             )
 
 
-def show_general_page(df, category_cols, money_cols, weight_map, group_name, sheet_options, updated_label=None):
+def show_general_page(df, category_cols, money_cols, weight_map, group_name, sheet_options, excel_source, updated_label=None):
     show_language_nav()
     show_program_banner(group_name, updated_label)
     show_top_nav(sheet_options, group_name)
@@ -788,6 +1000,16 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name, she
     c2.metric(t("average"), money_fmt(df["Total"].mean()))
     c3.metric(t("leader"), money_fmt(df["Total"].max()))
     c4.metric(t("players"), f"{len(df)}")
+
+    pdf_bytes = generate_executive_pdf(excel_source, sheet_options, updated_label, get_lang())
+    st.download_button(
+        t("export_summary"),
+        data=pdf_bytes,
+        file_name=t("summary_pdf_name"),
+        mime="application/pdf",
+        help=t("export_help"),
+        use_container_width=True,
+    )
 
     st.divider()
     st.subheader(t("top_performers"))
@@ -840,7 +1062,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name,
     c1.metric(t("current_earnings"), money_fmt(row["Total"]))
     c2.metric(t("program_rank"), f"#{int(row['Rank'])}")
     with c3:
-        small_info_card(t("team"), row.get("Team", ""))
+        small_info_card(t("team"), team_display(row.get("Team", "")))
     with c4:
         small_info_card(t("group"), display_group_name(group_name))
 
@@ -945,6 +1167,8 @@ def get_updated_label(source):
 updated_label = get_updated_label(excel_source)
 
 try:
+    if hasattr(excel_source, "seek"):
+        excel_source.seek(0)
     sheet_names = pd.ExcelFile(excel_source).sheet_names
 except Exception as e:
     st.error(f"{t("read_error")}: {e}")
@@ -977,4 +1201,4 @@ players = df.sort_values("Total", ascending=False)["Player"].tolist()
 if query_view == "player" and query_player in players:
     show_player_page(df, category_cols, weight_map, query_player, selected_sheet, sheet_options, updated_label)
 else:
-    show_general_page(df, category_cols, money_cols, weight_map, selected_sheet, sheet_options, updated_label)
+    show_general_page(df, category_cols, money_cols, weight_map, selected_sheet, sheet_options, excel_source, updated_label)
