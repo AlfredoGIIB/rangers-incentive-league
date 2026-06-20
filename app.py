@@ -8,7 +8,7 @@ import streamlit as st
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib.pagesizes import legal, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
@@ -733,11 +733,11 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=landscape(letter),
-        rightMargin=0.22 * inch,
-        leftMargin=0.22 * inch,
-        topMargin=0.24 * inch,
-        bottomMargin=0.22 * inch,
+        pagesize=landscape(legal),
+        rightMargin=0.18 * inch,
+        leftMargin=0.18 * inch,
+        topMargin=0.22 * inch,
+        bottomMargin=0.20 * inch,
     )
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -773,8 +773,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "Cell",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=4.55,
-        leading=5.05,
+        fontSize=5.2,
+        leading=5.75,
         textColor=colors.HexColor("#1f2937"),
         alignment=TA_LEFT,
     )
@@ -788,8 +788,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "HeaderCell",
         parent=cell_style,
         fontName="Helvetica-Bold",
-        fontSize=4.25,
-        leading=4.75,
+        fontSize=5.0,
+        leading=5.55,
         textColor=colors.white,
         alignment=TA_CENTER,
     )
@@ -797,6 +797,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "TotalCell",
         parent=cell_style,
         fontName="Helvetica-Bold",
+        fontSize=5.5,
+        leading=6.1,
         textColor=colors.HexColor("#111827"),
         alignment=TA_CENTER,
     )
@@ -830,11 +832,17 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         return f"{pdf_money_fmt(v)}\n({qty_fmt(q)})"
 
     def get_pdf_top_rows(sheet_name, category_cols):
-        """Return the rows that appear above the column headers in the Excel, aligned to the PDF table."""
+        """Return meaningful Excel metadata rows aligned above the item columns.
+
+        This keeps the same context staff see in the source sheet:
+        item area/category (Hitting, Defense, Team), frequency/type (Daily, Weekly),
+        and the RD$ weight. Blank cells from merged headers are forward-filled so
+        W / E0 / H10+ / Chase < 20% display TEAM and SL+ displays WEEKLY.
+        """
         if hasattr(excel_source, "seek"):
             excel_source.seek(0)
         raw_meta = pd.read_excel(excel_source, sheet_name=sheet_name, header=None)
-        header_row, _ = detect_header_and_weight_rows(raw_meta)
+        header_row, weight_row = detect_header_and_weight_rows(raw_meta)
         header_values = raw_meta.iloc[header_row].tolist()
 
         col_positions = {}
@@ -842,38 +850,79 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             if pd.notna(h):
                 col_positions[str(h).strip()] = idx
 
-        meta_rows = []
-        for ridx in range(header_row):
-            label = ""
-            row_values = []
-            for col in category_cols:
-                pos = col_positions.get(str(col).strip())
-                val = raw_meta.iat[ridx, pos] if pos is not None and pos < raw_meta.shape[1] else ""
-                if pd.isna(val):
-                    val = ""
-                row_values.append(val)
+        source_positions = [col_positions.get(str(col).strip()) for col in category_cols]
+        valid_positions = [pos for pos in source_positions if pos is not None]
+        min_pos = min(valid_positions) if valid_positions else 0
+        max_pos = max(valid_positions) if valid_positions else raw_meta.shape[1] - 1
 
-            numeric_count = 0
-            text_count = 0
-            for val in row_values:
-                if str(val).strip() == "":
+        def clean_meta_value(v):
+            if pd.isna(v):
+                return ""
+            text = str(v).strip()
+            if text.lower() == "nan":
+                return ""
+            # Avoid repeating title/date rows across all item columns.
+            if "INCENTIVOS" in text.upper() or "TEXAS RANGERS" in text.upper() or "ACTUALIZ" in text.upper():
+                return ""
+            return text
+
+        def aligned_forward_filled_values(ridx):
+            raw_vals = [clean_meta_value(raw_meta.iat[ridx, c]) if c < raw_meta.shape[1] else "" for c in range(raw_meta.shape[1])]
+            # Forward-fill only across the item region, matching how merged cells appear in Excel.
+            last = ""
+            filled = []
+            for c in range(raw_meta.shape[1]):
+                val = raw_vals[c]
+                if c < min_pos or c > max_pos:
+                    filled.append(val)
                     continue
+                if val != "":
+                    last = val
+                filled.append(last)
+            return [filled[pos] if pos is not None and pos < len(filled) else "" for pos in source_positions]
+
+        meta_rows = []
+        used_rows = set()
+
+        # Text metadata rows: category / area and frequency / type.
+        for ridx in range(header_row):
+            if ridx == weight_row:
+                continue
+            row_values = aligned_forward_filled_values(ridx)
+            non_empty = [v for v in row_values if str(v).strip() != ""]
+            if not non_empty:
+                continue
+            # Keep only rows that describe item groups/types, not title/date rows.
+            text_count = 0
+            for val in non_empty:
                 try:
-                    float(val)
-                    numeric_count += 1
+                    float(str(val).replace("RD$", "").replace(",", ""))
                 except Exception:
                     text_count += 1
+            if text_count == 0:
+                continue
+            unique_values = sorted(set(str(v).strip() for v in non_empty if str(v).strip()))
+            label = "Clasificación" if lang == "ES" else "Classification"
+            # If all values are DAILY/WEEKLY/TEAM style, call it Tipo.
+            lowered = {v.lower() for v in unique_values}
+            if lowered & {"daily", "weekly", "team", "diario", "semana", "semanal", "equipo"}:
+                label = "Tipo" if lang == "ES" else "Type"
+            meta_rows.append([pcell(label, bold=True), pcell(""), pcell(""), pcell("")] + [pcell(v.upper(), bold=True) for v in row_values])
+            used_rows.add(ridx)
 
-            if numeric_count >= max(1, text_count):
-                label = "Peso RD$" if lang == "ES" else "Weight RD$"
-                row_values = [pdf_money_fmt(v).replace("RD$", "") if str(v).strip() != "" else "" for v in row_values]
-            elif text_count > 0:
-                label = "Grupo / Tipo" if lang == "ES" else "Group / Type"
-            else:
-                label = ""
+        # Weight row: always show RD$ value per item.
+        if weight_row is not None and weight_row < raw_meta.shape[0]:
+            weight_values = []
+            for col in category_cols:
+                pos = col_positions.get(str(col).strip())
+                val = raw_meta.iat[weight_row, pos] if pos is not None and pos < raw_meta.shape[1] else ""
+                if pd.isna(val) or str(val).strip() == "":
+                    weight_values.append("")
+                else:
+                    weight_values.append(pdf_money_fmt(val))
+            label = "Peso" if lang == "ES" else "Weight"
+            meta_rows.append([pcell(label, bold=True), pcell(""), pcell(""), pcell("")] + [pcell(v, bold=True) for v in weight_values])
 
-            # Keep the first two columns mostly empty so metadata lines up over the item columns.
-            meta_rows.append([pcell(label, bold=True), pcell(""), pcell(""), pcell("")] + [pcell(v, bold=True) for v in row_values])
         return meta_rows
 
     def blend(c1, c2, pct):
@@ -906,7 +955,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         header_title = "DSL 2026 PROGRAMA DE INCENTIVOS" if lang == "ES" else "DSL 2026 INCENTIVE PROGRAM"
         updated_word = "Actualizado" if lang == "ES" else "Updated"
         header_subtitle = f"Texas Rangers Baseball Club · {group_label} · {updated_word}: {updated_label}"
-        header = Table([[Paragraph(header_title, title_style)], [Paragraph(header_subtitle, subtitle_style)]], colWidths=[10.55 * inch])
+        header = Table([[Paragraph(header_title, title_style)], [Paragraph(header_subtitle, subtitle_style)]], colWidths=[13.60 * inch])
         header.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#002D72")),
             ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#002D72")),
@@ -942,10 +991,10 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
                 row.append(pcell(money_qty_fmt(val, qty)))
             money_matrix.append(row)
 
-        page_width = 10.55 * inch
-        fixed = 0.40*inch + 1.42*inch + 0.50*inch + 0.76*inch
-        stat_w = max(0.35*inch, (page_width - fixed) / max(1, len(category_cols)))
-        col_widths = [0.40*inch, 1.42*inch, 0.50*inch, 0.76*inch] + [stat_w] * len(category_cols)
+        page_width = 13.60 * inch
+        fixed = 0.42*inch + 1.85*inch + 0.58*inch + 0.92*inch
+        stat_w = max(0.46*inch, (page_width - fixed) / max(1, len(category_cols)))
+        col_widths = [0.42*inch, 1.85*inch, 0.58*inch, 0.92*inch] + [stat_w] * len(category_cols)
         item_table = Table(money_matrix, colWidths=col_widths, repeatRows=header_pdf_row + 1)
         ts = [
             ("BACKGROUND", (0, 0), (-1, max(0, header_pdf_row - 1)), colors.HexColor("#EEF2F7")),
@@ -955,17 +1004,17 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             ("TEXTCOLOR", (0, header_pdf_row), (-1, header_pdf_row), colors.white),
             ("FONTNAME", (0, header_pdf_row), (-1, header_pdf_row), "Helvetica-Bold"),
             ("GRID", (0, 0), (-1, -1), 0.22, colors.HexColor("#857874")),
-            ("FONTSIZE", (0, 0), (-1, -1), 4.45),
+            ("FONTSIZE", (0, 0), (-1, -1), 5.0),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ROWBACKGROUNDS", (0, first_data_row), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
             ("FONTNAME", (1, first_data_row), (1, -1), "Helvetica-Bold"),
             ("FONTNAME", (3, first_data_row), (3, -1), "Helvetica-Bold"),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("ALIGN", (1, first_data_row), (1, -1), "LEFT"),
-            ("TOPPADDING", (0, 0), (-1, -1), 1.55),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.55),
-            ("LEFTPADDING", (0, 0), (-1, -1), 1.3),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 1.3),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.8),
+            ("LEFTPADDING", (0, 0), (-1, -1), 1.7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 1.7),
         ]
 
         # Total earnings gradient: highest totals green, lowest totals red.
@@ -978,9 +1027,11 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
                 qty = float(r[c]) if pd.notna(r[c]) else 0
                 val = qty * (0 if pd.isna(w) else w)
                 if val > 0:
-                    ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#15803d")))
+                    ts.append(("BACKGROUND", (cidx, ridx), (cidx, ridx), colors.HexColor("#DCFCE7")))
+                    ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#166534")))
                 elif val < 0:
-                    ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#BA0C2F")))
+                    ts.append(("BACKGROUND", (cidx, ridx), (cidx, ridx), colors.HexColor("#FEE2E2")))
+                    ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#991B1B")))
         item_table.setStyle(TableStyle(ts))
         story.append(item_table)
         if page_idx < len(pages) - 1:
