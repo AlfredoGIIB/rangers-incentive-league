@@ -728,6 +728,14 @@ def pdf_money_fmt(value):
     sign = "-" if value < 0 else ""
     return f"{sign}RD${abs(value):,.0f}"
 
+def pdf_number_fmt(value):
+    try:
+        value = float(value)
+    except Exception:
+        value = 0
+    sign = "-" if value < 0 else ""
+    return f"{sign}{abs(value):,.0f}"
+
 
 def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"):
     buffer = BytesIO()
@@ -776,7 +784,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         fontSize=5.0,
         leading=5.45,
         textColor=colors.HexColor("#1f2937"),
-        alignment=TA_LEFT,
+        alignment=TA_CENTER,
     )
     cell_bold_style = ParagraphStyle(
         "CellBold",
@@ -831,7 +839,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             q = 0
         if abs(v) < 0.00001 and abs(q) < 0.00001:
             return "—"
-        return f"{pdf_money_fmt(v)} ({qty_fmt(q)})"
+        return f"{pdf_number_fmt(v)} ({qty_fmt(q)})"
 
     def get_pdf_top_rows(sheet_name, category_cols):
         """Return compact merged metadata rows for the PDF table.
@@ -910,7 +918,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
 
         def append_grouped_row(label, values):
             row_index = len(meta_rows)
-            row = [pcell(label, bold=True), pcell(""), pcell(""), pcell("")]
+            row = [pcell(""), pcell(""), pcell(""), pcell("")]
             groups = []
             start = 0
             while start < len(values):
@@ -976,10 +984,10 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
                 if pd.isna(val) or str(val).strip() == "":
                     weight_values.append("")
                 else:
-                    weight_values.append(pdf_money_fmt(val))
+                    weight_values.append(pdf_number_fmt(val))
             label = "Peso" if lang == "ES" else "Weight"
             row_index = len(meta_rows)
-            meta_rows.append([pcell(label, bold=True), pcell(""), pcell(""), pcell("")] + [pcell(v, bold=True) for v in weight_values])
+            meta_rows.append([pcell(""), pcell(""), pcell(""), pcell("")] + [pcell(v, bold=True) for v in weight_values])
             span_commands.append(("SPAN", (0, row_index), (3, row_index)))
 
         return meta_rows, span_commands
@@ -1026,7 +1034,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         story.append(Spacer(1, 0.06 * inch))
 
         story.append(Paragraph(t("full_items_pdf"), section_style))
-        headers = ["Rank", "Player" if lang == "EN" else "Jugador", "Team" if lang == "EN" else "Equipo", "Total"] + [str(c) for c in category_cols]
+        headers = ["Rank", "Player" if lang == "EN" else "Jugador", "Team" if lang == "EN" else "Equipo", "Total RD$"] + [str(c) for c in category_cols]
         meta_rows, meta_spans = get_pdf_top_rows(sheet, category_cols)
         money_matrix = meta_rows + [[pcell(h, header=True) for h in headers]]
         header_pdf_row = len(meta_rows)
@@ -1041,7 +1049,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
                 pcell(f"#{int(r['Rank'])}"),
                 pcell(r["Player"], bold=True),
                 pcell(team_display_static(r.get("Team", ""), lang)),
-                pcell(pdf_money_fmt(r["Total"]), total=True),
+                pcell(pdf_number_fmt(r["Total"]), total=True),
             ]
             for c in category_cols:
                 w = weight_map.get(c, 0)
@@ -1076,7 +1084,6 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             ("FONTNAME", (1, first_data_row), (1, -1), "Helvetica-Bold"),
             ("FONTNAME", (3, first_data_row), (3, -1), "Helvetica-Bold"),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("ALIGN", (1, first_data_row), (1, -1), "LEFT"),
             ("TOPPADDING", (0, 0), (-1, -1), 1.5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
             ("LEFTPADDING", (0, 0), (-1, -1), 1.2),
@@ -1084,6 +1091,23 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         ]
 
         ts.extend(meta_spans)
+
+        # Weight row styling: positive weights green, negative weights Rangers red, white text.
+        weight_pdf_row = header_pdf_row - 1 if header_pdf_row > 0 else None
+        if weight_pdf_row is not None:
+            for cidx, col in enumerate(category_cols, start=4):
+                try:
+                    wv = float(weight_map.get(col, 0))
+                except Exception:
+                    wv = 0
+                if wv > 0:
+                    ts.append(("BACKGROUND", (cidx, weight_pdf_row), (cidx, weight_pdf_row), colors.HexColor("#00843D")))
+                    ts.append(("TEXTCOLOR", (cidx, weight_pdf_row), (cidx, weight_pdf_row), colors.white))
+                    ts.append(("FONTNAME", (cidx, weight_pdf_row), (cidx, weight_pdf_row), "Helvetica-Bold"))
+                elif wv < 0:
+                    ts.append(("BACKGROUND", (cidx, weight_pdf_row), (cidx, weight_pdf_row), colors.HexColor("#BA0C2F")))
+                    ts.append(("TEXTCOLOR", (cidx, weight_pdf_row), (cidx, weight_pdf_row), colors.white))
+                    ts.append(("FONTNAME", (cidx, weight_pdf_row), (cidx, weight_pdf_row), "Helvetica-Bold"))
 
         # Total earnings gradient: highest totals green, lowest totals red.
         for ridx, (_, r) in enumerate(full.iterrows(), start=first_data_row):
