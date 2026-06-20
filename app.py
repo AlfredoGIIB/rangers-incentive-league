@@ -829,6 +829,53 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             return "—"
         return f"{pdf_money_fmt(v)}\n({qty_fmt(q)})"
 
+    def get_pdf_top_rows(sheet_name, category_cols):
+        """Return the rows that appear above the column headers in the Excel, aligned to the PDF table."""
+        if hasattr(excel_source, "seek"):
+            excel_source.seek(0)
+        raw_meta = pd.read_excel(excel_source, sheet_name=sheet_name, header=None)
+        header_row, _ = detect_header_and_weight_rows(raw_meta)
+        header_values = raw_meta.iloc[header_row].tolist()
+
+        col_positions = {}
+        for idx, h in enumerate(header_values):
+            if pd.notna(h):
+                col_positions[str(h).strip()] = idx
+
+        meta_rows = []
+        for ridx in range(header_row):
+            label = ""
+            row_values = []
+            for col in category_cols:
+                pos = col_positions.get(str(col).strip())
+                val = raw_meta.iat[ridx, pos] if pos is not None and pos < raw_meta.shape[1] else ""
+                if pd.isna(val):
+                    val = ""
+                row_values.append(val)
+
+            numeric_count = 0
+            text_count = 0
+            for val in row_values:
+                if str(val).strip() == "":
+                    continue
+                try:
+                    float(val)
+                    numeric_count += 1
+                except Exception:
+                    text_count += 1
+
+            if numeric_count >= max(1, text_count):
+                label = "Peso RD$" if lang == "ES" else "Weight RD$"
+                row_values = [pdf_money_fmt(v).replace("RD$", "") if str(v).strip() != "" else "" for v in row_values]
+            elif text_count > 0:
+                label = "Grupo / Tipo" if lang == "ES" else "Group / Type"
+            else:
+                label = ""
+
+            # Keep the first two columns mostly empty so metadata lines up over the item columns.
+            meta_rows.append([pcell(label, bold=True), pcell(""), pcell(""), pcell("")] + [pcell(v, bold=True) for v in row_values])
+        return meta_rows
+
     def blend(c1, c2, pct):
         pct = max(0, min(1, pct))
         return tuple(int(c1[i] + (c2[i] - c1[i]) * pct) for i in range(3))
@@ -872,7 +919,10 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
 
         story.append(Paragraph(t("full_items_pdf"), section_style))
         headers = ["Rank", "Player" if lang == "EN" else "Jugador", "Team" if lang == "EN" else "Equipo", "Total"] + [str(c) for c in category_cols]
-        money_matrix = [[pcell(h, header=True) for h in headers]]
+        meta_rows = get_pdf_top_rows(sheet, category_cols)
+        money_matrix = meta_rows + [[pcell(h, header=True) for h in headers]]
+        header_pdf_row = len(meta_rows)
+        first_data_row = header_pdf_row + 1
         full = df.sort_values("Rank").copy()
         totals = pd.to_numeric(full["Total"], errors="coerce").fillna(0)
         min_total = float(totals.min()) if not totals.empty else 0
@@ -896,27 +946,30 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         fixed = 0.40*inch + 1.42*inch + 0.50*inch + 0.76*inch
         stat_w = max(0.35*inch, (page_width - fixed) / max(1, len(category_cols)))
         col_widths = [0.40*inch, 1.42*inch, 0.50*inch, 0.76*inch] + [stat_w] * len(category_cols)
-        item_table = Table(money_matrix, colWidths=col_widths, repeatRows=1)
+        item_table = Table(money_matrix, colWidths=col_widths, repeatRows=header_pdf_row + 1)
         ts = [
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#002D72")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BACKGROUND", (0, 0), (-1, max(0, header_pdf_row - 1)), colors.HexColor("#EEF2F7")),
+            ("TEXTCOLOR", (0, 0), (-1, max(0, header_pdf_row - 1)), colors.HexColor("#002D72")),
+            ("FONTNAME", (0, 0), (-1, max(0, header_pdf_row - 1)), "Helvetica-Bold"),
+            ("BACKGROUND", (0, header_pdf_row), (-1, header_pdf_row), colors.HexColor("#002D72")),
+            ("TEXTCOLOR", (0, header_pdf_row), (-1, header_pdf_row), colors.white),
+            ("FONTNAME", (0, header_pdf_row), (-1, header_pdf_row), "Helvetica-Bold"),
             ("GRID", (0, 0), (-1, -1), 0.22, colors.HexColor("#857874")),
             ("FONTSIZE", (0, 0), (-1, -1), 4.45),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
-            ("FONTNAME", (1, 1), (1, -1), "Helvetica-Bold"),
-            ("FONTNAME", (3, 1), (3, -1), "Helvetica-Bold"),
+            ("ROWBACKGROUNDS", (0, first_data_row), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+            ("FONTNAME", (1, first_data_row), (1, -1), "Helvetica-Bold"),
+            ("FONTNAME", (3, first_data_row), (3, -1), "Helvetica-Bold"),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("ALIGN", (1, 1), (1, -1), "LEFT"),
-            ("TOPPADDING", (0, 0), (-1, -1), 1.7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.7),
-            ("LEFTPADDING", (0, 0), (-1, -1), 1.5),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 1.5),
+            ("ALIGN", (1, first_data_row), (1, -1), "LEFT"),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.55),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.55),
+            ("LEFTPADDING", (0, 0), (-1, -1), 1.3),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 1.3),
         ]
 
         # Total earnings gradient: highest totals green, lowest totals red.
-        for ridx, (_, r) in enumerate(full.iterrows(), start=1):
+        for ridx, (_, r) in enumerate(full.iterrows(), start=first_data_row):
             ts.append(("BACKGROUND", (3, ridx), (3, ridx), total_gradient_color(r["Total"], min_total, max_total)))
 
             # Color item text only: green for gains, Rangers red for losses.
