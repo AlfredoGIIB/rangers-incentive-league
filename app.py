@@ -734,10 +734,10 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(letter),
-        rightMargin=0.28 * inch,
-        leftMargin=0.28 * inch,
-        topMargin=0.28 * inch,
-        bottomMargin=0.28 * inch,
+        rightMargin=0.22 * inch,
+        leftMargin=0.22 * inch,
+        topMargin=0.24 * inch,
+        bottomMargin=0.22 * inch,
     )
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -763,18 +763,18 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "Section",
         parent=styles["Heading2"],
         fontName="Helvetica-Bold",
-        fontSize=10,
-        leading=12,
+        fontSize=9,
+        leading=11,
         textColor=colors.HexColor("#002D72"),
-        spaceBefore=6,
-        spaceAfter=4,
+        spaceBefore=4,
+        spaceAfter=3,
     )
     cell_style = ParagraphStyle(
         "Cell",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=5.3,
-        leading=6.1,
+        fontSize=4.55,
+        leading=5.05,
         textColor=colors.HexColor("#1f2937"),
         alignment=TA_LEFT,
     )
@@ -784,9 +784,69 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         fontName="Helvetica-Bold",
         textColor=colors.HexColor("#002D72"),
     )
+    header_cell_style = ParagraphStyle(
+        "HeaderCell",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+        fontSize=4.25,
+        leading=4.75,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+    )
+    total_cell_style = ParagraphStyle(
+        "TotalCell",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+        textColor=colors.HexColor("#111827"),
+        alignment=TA_CENTER,
+    )
 
-    def pcell(value, bold=False):
-        return Paragraph(str(value), cell_bold_style if bold else cell_style)
+    def pcell(value, bold=False, header=False, total=False):
+        text = str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        text = text.replace("\n", "<br/>")
+        style = header_cell_style if header else (total_cell_style if total else (cell_bold_style if bold else cell_style))
+        return Paragraph(text, style)
+
+    def qty_fmt(qty):
+        try:
+            q = float(qty)
+        except Exception:
+            q = 0
+        if abs(q - round(q)) < 0.00001:
+            return f"{int(round(q)):,}"
+        return f"{q:,.1f}"
+
+    def money_qty_fmt(value, qty):
+        try:
+            v = float(value)
+        except Exception:
+            v = 0
+        try:
+            q = float(qty)
+        except Exception:
+            q = 0
+        if abs(v) < 0.00001 and abs(q) < 0.00001:
+            return "—"
+        return f"{pdf_money_fmt(v)}\n({qty_fmt(q)})"
+
+    def blend(c1, c2, pct):
+        pct = max(0, min(1, pct))
+        return tuple(int(c1[i] + (c2[i] - c1[i]) * pct) for i in range(3))
+
+    def total_gradient_color(value, min_value, max_value):
+        # Low totals = red, midpoint = pale yellow, high totals = green.
+        red = (248, 113, 113)
+        yellow = (254, 243, 199)
+        green = (134, 239, 172)
+        if max_value == min_value:
+            rgb = yellow
+        else:
+            pct = (float(value) - float(min_value)) / (float(max_value) - float(min_value))
+            if pct <= 0.5:
+                rgb = blend(red, yellow, pct / 0.5)
+            else:
+                rgb = blend(yellow, green, (pct - 0.5) / 0.5)
+        return colors.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
 
     story = []
     pages = [s for s in ["Position Players", "Pitchers"] if s in sheet_options]
@@ -797,8 +857,9 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         df, category_cols, money_cols, weight_map = process_sheet(excel_source, sheet)
         group_label = ("Jugadores de Posición" if sheet == "Position Players" else "Lanzadores") if lang == "ES" else ("Position Players" if sheet == "Position Players" else "Pitchers")
         header_title = "DSL 2026 PROGRAMA DE INCENTIVOS" if lang == "ES" else "DSL 2026 INCENTIVE PROGRAM"
-        header_subtitle = f"Texas Rangers Baseball Club · {group_label} · {(('Actualizado' if lang == 'ES' else 'Updated') + ': ' + updated_label)}"
-        header = Table([[Paragraph(header_title, title_style)], [Paragraph(header_subtitle, subtitle_style)]], colWidths=[10.4 * inch])
+        updated_word = "Actualizado" if lang == "ES" else "Updated"
+        header_subtitle = f"Texas Rangers Baseball Club · {group_label} · {updated_word}: {updated_label}"
+        header = Table([[Paragraph(header_title, title_style)], [Paragraph(header_subtitle, subtitle_style)]], colWidths=[10.55 * inch])
         header.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#002D72")),
             ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#002D72")),
@@ -807,73 +868,58 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
         ]))
         story.append(header)
-        story.append(Spacer(1, 0.08 * inch))
-
-        story.append(Paragraph(t("top_performers_pdf"), section_style))
-        top = df.sort_values("Total", ascending=False).head(3).copy()
-        top_rows = [["Rank", "Player" if lang == "EN" else "Jugador", "Team" if lang == "EN" else "Equipo", "Earnings" if lang == "EN" else "Ganancias", "Biggest Contributor" if lang == "EN" else "Mayor Aporte"]]
-        for _, r in top.iterrows():
-            stat, value = top_positive_stat(r, category_cols, weight_map)
-            top_rows.append([
-                f"#{int(r['Rank'])}",
-                str(r["Player"]),
-                team_display_static(r.get("Team", ""), lang),
-                pdf_money_fmt(r["Total"]),
-                f"{stat} ({pdf_money_fmt(value)})" if stat != "—" else "—",
-            ])
-        top_table = Table(top_rows, colWidths=[0.5*inch, 2.2*inch, 0.75*inch, 1.2*inch, 2.4*inch], repeatRows=1)
-        top_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#002D72")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 7),
-            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#857874")),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7f7f7")]),
-            ("TEXTCOLOR", (3, 1), (3, -1), colors.HexColor("#15803d")),
-            ("FONTNAME", (3, 1), (3, -1), "Helvetica-Bold"),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
-        story.append(top_table)
-        story.append(Spacer(1, 0.08 * inch))
+        story.append(Spacer(1, 0.06 * inch))
 
         story.append(Paragraph(t("full_items_pdf"), section_style))
-        money_matrix = []
         headers = ["Rank", "Player" if lang == "EN" else "Jugador", "Team" if lang == "EN" else "Equipo", "Total"] + [str(c) for c in category_cols]
-        money_matrix.append([pcell(h, bold=True) for h in headers])
+        money_matrix = [[pcell(h, header=True) for h in headers]]
         full = df.sort_values("Rank").copy()
+        totals = pd.to_numeric(full["Total"], errors="coerce").fillna(0)
+        min_total = float(totals.min()) if not totals.empty else 0
+        max_total = float(totals.max()) if not totals.empty else 0
+
         for _, r in full.iterrows():
-            row = [pcell(f"#{int(r['Rank'])}"), pcell(r["Player"], bold=True), pcell(team_display_static(r.get("Team", ""), lang)), pcell(pdf_money_fmt(r["Total"]), bold=True)]
+            row = [
+                pcell(f"#{int(r['Rank'])}"),
+                pcell(r["Player"], bold=True),
+                pcell(team_display_static(r.get("Team", ""), lang)),
+                pcell(pdf_money_fmt(r["Total"]), total=True),
+            ]
             for c in category_cols:
                 w = weight_map.get(c, 0)
                 qty = float(r[c]) if pd.notna(r[c]) else 0
                 val = qty * (0 if pd.isna(w) else w)
-                row.append(pcell(pdf_money_fmt(val) if val else "—"))
+                row.append(pcell(money_qty_fmt(val, qty)))
             money_matrix.append(row)
 
-        page_width = 10.4 * inch
-        fixed = 0.42*inch + 1.55*inch + 0.52*inch + 0.78*inch
-        stat_w = max(0.38*inch, (page_width - fixed) / max(1, len(category_cols)))
-        col_widths = [0.42*inch, 1.55*inch, 0.52*inch, 0.78*inch] + [stat_w] * len(category_cols)
+        page_width = 10.55 * inch
+        fixed = 0.40*inch + 1.42*inch + 0.50*inch + 0.76*inch
+        stat_w = max(0.35*inch, (page_width - fixed) / max(1, len(category_cols)))
+        col_widths = [0.40*inch, 1.42*inch, 0.50*inch, 0.76*inch] + [stat_w] * len(category_cols)
         item_table = Table(money_matrix, colWidths=col_widths, repeatRows=1)
         ts = [
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#002D72")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#857874")),
-            ("FONTSIZE", (0, 0), (-1, -1), 5.2),
+            ("GRID", (0, 0), (-1, -1), 0.22, colors.HexColor("#857874")),
+            ("FONTSIZE", (0, 0), (-1, -1), 4.45),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
-            ("TEXTCOLOR", (3, 1), (3, -1), colors.HexColor("#002D72")),
             ("FONTNAME", (1, 1), (1, -1), "Helvetica-Bold"),
             ("FONTNAME", (3, 1), (3, -1), "Helvetica-Bold"),
-            ("TOPPADDING", (0, 0), (-1, -1), 2.2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2),
-            ("LEFTPADDING", (0, 0), (-1, -1), 2.2),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 2.2),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("ALIGN", (1, 1), (1, -1), "LEFT"),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.7),
+            ("LEFTPADDING", (0, 0), (-1, -1), 1.5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 1.5),
         ]
-        # Color positive/negative item cells for fast executive scanning.
+
+        # Total earnings gradient: highest totals green, lowest totals red.
         for ridx, (_, r) in enumerate(full.iterrows(), start=1):
+            ts.append(("BACKGROUND", (3, ridx), (3, ridx), total_gradient_color(r["Total"], min_total, max_total)))
+
+            # Color item text only: green for gains, Rangers red for losses.
             for cidx, c in enumerate(category_cols, start=4):
                 w = weight_map.get(c, 0)
                 qty = float(r[c]) if pd.notna(r[c]) else 0
