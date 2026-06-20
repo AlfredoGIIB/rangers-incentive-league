@@ -105,6 +105,31 @@ st.markdown(
         font-weight: 900;
         color: #002D72;
     }
+    .info-card {
+        border: 1px solid rgba(133,120,116,.55);
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 13px 15px;
+        min-height: 76px;
+        box-shadow: 0 2px 8px rgba(0,45,114,.06);
+    }
+    .info-card-label {
+        font-size: 12px;
+        line-height: 1.15;
+        font-weight: 850;
+        letter-spacing: .07em;
+        text-transform: uppercase;
+        color: #857874;
+        margin-bottom: 8px;
+    }
+    .info-card-value {
+        font-size: clamp(14px, 1.25vw, 18px);
+        line-height: 1.18;
+        font-weight: 850;
+        color: #002D72;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
     .small-label {
         font-size: 13px;
         color: #857874;
@@ -185,6 +210,14 @@ st.markdown(
         color: #857874;
         font-weight: 800;
     }
+    [data-testid="stMetricValue"] {
+        font-size: clamp(20px, 2.1vw, 30px) !important;
+        line-height: 1.1 !important;
+        white-space: nowrap !important;
+    }
+    [data-testid="stMetric"] {
+        overflow: visible !important;
+    }
     h1, h2, h3, h4 {
         color: #002D72 !important;
         font-weight: 850 !important;
@@ -226,13 +259,13 @@ TEXT = {
         "back": "Volver al Ranking General",
         "earnings_sources": "Fuentes de Ganancias",
         "earnings_sources_note": "Stats que más han aportado a sus ganancias dentro del programa de incentivos DSL 2026.",
-        "deductions": "Deducciones",
-        "deductions_note": "Stats que han generado pérdidas dentro del programa de incentivos DSL 2026.",
+        "deductions": "Pérdidas",
+        "deductions_note": "Stats donde el jugador ha perdido ganancias dentro del programa de incentivos DSL 2026.",
         "no_positive": "Todavía no hay ganancias positivas registradas.",
-        "no_deductions": "No hay deducciones registradas.",
+        "no_deductions": "No hay pérdidas registradas.",
         "player_summary": "Resumen de Incentivos del Jugador",
         "primary_source": "Fuente Principal de Ganancias",
-        "largest_deduction": "Mayor Deducción",
+        "largest_deduction": "Mayor Pérdida",
         "no_main_source": "Todavía no hay una fuente principal de ganancias.",
         "full_breakdown": "Desglose Completo de Ganancias",
         "upload_label": "Subir otro Excel de incentivos",
@@ -283,13 +316,13 @@ TEXT = {
         "back": "Back to Full Standings",
         "earnings_sources": "Earnings Sources",
         "earnings_sources_note": "Stats that have contributed the most to the player's earnings in the DSL 2026 incentive program.",
-        "deductions": "Earnings Deductions",
-        "deductions_note": "Stats that have generated deductions in the DSL 2026 incentive program.",
+        "deductions": "Earnings Lost",
+        "deductions_note": "Stats where the player has lost earnings in the DSL 2026 incentive program.",
         "no_positive": "No positive earnings registered yet.",
-        "no_deductions": "No earnings deductions registered.",
+        "no_deductions": "No earnings lost registered.",
         "player_summary": "Player Incentive Summary",
         "primary_source": "Primary Earnings Source",
-        "largest_deduction": "Largest Deduction",
+        "largest_deduction": "Largest Loss",
         "no_main_source": "No main earnings source yet.",
         "full_breakdown": "Full Earnings Breakdown",
         "upload_label": "Upload a different incentives Excel",
@@ -775,6 +808,16 @@ def show_general_page(df, category_cols, money_cols, weight_map, group_name, she
     st.markdown(f'<div style="color:#857874;font-size:13px;margin-top:20px;text-align:center;">{t("footer")}</div>', unsafe_allow_html=True)
 
 
+
+def small_info_card(label, value):
+    st.markdown(
+        f"""<div class="info-card">
+            <div class="info-card-label">{html_escape(str(label))}</div>
+            <div class="info-card-value">{html_escape(str(value))}</div>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
 def show_player_page(df, category_cols, weight_map, selected_player, group_name, sheet_options, updated_label=None):
     player_rows = df[df["Player"] == selected_player]
     if player_rows.empty:
@@ -796,8 +839,10 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name,
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(t("current_earnings"), money_fmt(row["Total"]))
     c2.metric(t("program_rank"), f"#{int(row['Rank'])}")
-    c3.metric(t("team"), row.get("Team", ""))
-    c4.metric(t("group"), display_group_name(group_name))
+    with c3:
+        small_info_card(t("team"), row.get("Team", ""))
+    with c4:
+        small_info_card(t("group"), display_group_name(group_name))
 
     st.markdown(f"[{t("back")}](?group={quote(str(group_name))})")
 
