@@ -766,8 +766,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFMainTitle",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=23,
-        leading=25.5,
+        fontSize=19.5,
+        leading=21.0,
         textColor=RANGERS_BLUE,
         alignment=TA_LEFT,
         spaceAfter=0,
@@ -776,8 +776,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFSubtitle",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=15.2,
-        leading=17.8,
+        fontSize=12.8,
+        leading=14.2,
         textColor=RANGERS_RED,
         alignment=TA_LEFT,
         spaceAfter=0,
@@ -786,8 +786,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFUpdated",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=8.4,
-        leading=9.8,
+        fontSize=7.4,
+        leading=8.2,
         textColor=RANGERS_BLUE,
         alignment=TA_LEFT,
     )
@@ -826,6 +826,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         leading=11.2,
         textColor=RANGERS_BLUE,
         alignment=TA_CENTER,
+        splitLongWords=0,
+        wordWrap=None,
     )
     team_style = ParagraphStyle(
         "PDFTeam",
@@ -844,6 +846,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         leading=8.1,
         textColor=BLACK,
         alignment=TA_CENTER,
+        splitLongWords=0,
+        wordWrap=None,
     )
     total_style = ParagraphStyle(
         "PDFTotal",
@@ -853,6 +857,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         leading=11.6,
         textColor=colors.HexColor("#064E3B"),
         alignment=TA_CENTER,
+        splitLongWords=0,
+        wordWrap=None,
     )
     note_style = ParagraphStyle(
         "PDFNote",
@@ -901,10 +907,10 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         except Exception:
             q = 0
         if abs(v) < 0.00001 and abs(q) < 0.00001:
-            return '<font color="#111827"><b>0(0)</b></font>'
+            return '<font color="#111827"><b>0&#160;(0)</b></font>'
         color = "#006B2E" if v > 0 else ("#BA0C2F" if v < 0 else "#111827")
         amount = pdf_number_fmt(v)
-        return f'<font color="{color}"><b>{amount} ({qty_fmt(q)})</b></font>'
+        return f'<font color="{color}"><b>{amount}&#160;({qty_fmt(q)})</b></font>'
 
     def team_pdf_label(value):
         value = str(value).strip().upper()
@@ -1006,7 +1012,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         logo_path = next((p for p in logo_candidates if p.exists()), None)
         logo_cell = ""
         if logo_path:
-            logo_cell = Image(str(logo_path), width=0.58 * inch, height=0.58 * inch)
+            logo_cell = Image(str(logo_path), width=0.70 * inch, height=0.70 * inch)
 
         title_block = [
             [Paragraph("TEXAS RANGERS", title_style)],
@@ -1028,7 +1034,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             ("RIGHTPADDING", (0, 0), (-1, -1), 3),
         ]))
         spacer = ""
-        header = Table([[logo_cell, title_table, spacer, badge]], colWidths=[0.70 * inch, 8.05 * inch, 2.20 * inch, 2.45 * inch])
+        header = Table([[logo_cell, title_table, spacer, badge]], colWidths=[0.85 * inch, 8.00 * inch, 2.10 * inch, 2.45 * inch])
         header.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
