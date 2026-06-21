@@ -786,8 +786,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFUpdated",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=9,
-        leading=13.5,
+        fontSize=8.6,
+        leading=10.2,
         textColor=RANGERS_BLUE,
         alignment=TA_LEFT,
     )
@@ -795,8 +795,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFBadge",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=11,
-        leading=16.5,
+        fontSize=10.5,
+        leading=11.5,
         textColor=colors.white,
         alignment=TA_CENTER,
     )
@@ -804,8 +804,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFGroup",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=7.0,
-        leading=10.5,
+        fontSize=6.6,
+        leading=7.6,
         textColor=RANGERS_BLUE,
         alignment=TA_CENTER,
     )
@@ -813,8 +813,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFHeader",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=6.6,
-        leading=9.9,
+        fontSize=7.0,
+        leading=7.8,
         textColor=RANGERS_BLUE,
         alignment=TA_CENTER,
     )
@@ -823,7 +823,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
         fontSize=9.0,
-        leading=13.5,
+        leading=9.8,
         textColor=RANGERS_BLUE,
         alignment=TA_LEFT,
     )
@@ -832,7 +832,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
         fontSize=5.2,
-        leading=7.8,
+        leading=5.8,
         textColor=colors.white,
         alignment=TA_CENTER,
     )
@@ -840,8 +840,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFValue",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=7.1,
-        leading=10.65,
+        fontSize=7.7,
+        leading=8.4,
         textColor=BLACK,
         alignment=TA_CENTER,
     )
@@ -849,8 +849,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFTotal",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=9.4,
-        leading=14.1,
+        fontSize=9.8,
+        leading=10.4,
         textColor=colors.HexColor("#064E3B"),
         alignment=TA_CENTER,
     )
@@ -858,8 +858,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFNote",
         parent=styles["Normal"],
         fontName="Helvetica-Oblique",
-        fontSize=7.0,
-        leading=10.5,
+        fontSize=6.6,
+        leading=7.6,
         textColor=RANGERS_BLUE,
         alignment=TA_LEFT,
     )
@@ -867,8 +867,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFSlogan",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=10.0,
-        leading=15.0,
+        fontSize=9.2,
+        leading=10.0,
         textColor=RANGERS_BLUE,
         alignment=TA_RIGHT,
     )
@@ -901,10 +901,10 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         except Exception:
             q = 0
         if abs(v) < 0.00001 and abs(q) < 0.00001:
-            return '<font color="#111827"><b>0</b></font> <font size="5">(0)</font>'
+            return '<font color="#111827"><b>0</b></font> <font size="5.5">(0)</font>'
         color = "#006B2E" if v > 0 else ("#BA0C2F" if v < 0 else "#111827")
         amount = pdf_number_fmt(v)
-        return f'<font color="{color}"><b>{amount}</b></font> <font size="5.4">({qty_fmt(q)})</font>'
+        return f'<font color="{color}"><b>{amount}</b></font> <font size="5.8">({qty_fmt(q)})</font>'
 
     def team_pdf_label(value):
         value = str(value).strip().upper()
@@ -1006,21 +1006,21 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         logo_path = next((p for p in logo_candidates if p.exists()), None)
         logo_cell = ""
         if logo_path:
-            logo_cell = Image(str(logo_path), width=0.72 * inch, height=0.72 * inch)
+            logo_cell = Image(str(logo_path), width=0.58 * inch, height=0.58 * inch)
 
         title_block = [
             [Paragraph("TEXAS RANGERS", title_style)],
             [Paragraph("2026 DSL INCENTIVE SUMMARY", subtitle_style)],
             [Paragraph(f"Last Updated: {esc(updated_label)}", updated_style)],
         ]
-        title_table = Table(title_block, colWidths=[7.65 * inch])
+        title_table = Table(title_block, colWidths=[7.95 * inch])
         title_table.setStyle(TableStyle([
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ]))
-        badge = Table([[Paragraph(section_label.upper(), section_badge_style)]], colWidths=[2.55 * inch], rowHeights=[0.32 * inch])
+        badge = Table([[Paragraph(section_label.upper(), section_badge_style)]], colWidths=[2.45 * inch], rowHeights=[0.27 * inch])
         badge.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), RANGERS_RED),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -1028,13 +1028,13 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             ("RIGHTPADDING", (0, 0), (-1, -1), 3),
         ]))
         spacer = ""
-        header = Table([[logo_cell, title_table, spacer, badge]], colWidths=[0.92 * inch, 7.85 * inch, 2.10 * inch, 2.65 * inch])
+        header = Table([[logo_cell, title_table, spacer, badge]], colWidths=[0.70 * inch, 8.05 * inch, 2.20 * inch, 2.45 * inch])
         header.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
             ("LINEBELOW", (0, 0), (-1, 0), 2.0, RANGERS_BLUE),
         ]))
         return header
@@ -1047,7 +1047,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ]))
         return ft
@@ -1061,7 +1061,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         df, category_cols, money_cols, weight_map = process_sheet(excel_source, sheet)
         section_label = "POSITION PLAYERS" if sheet == "Position Players" else "PITCHERS"
         story.append(build_header(section_label))
-        story.append(Spacer(1, 0.08 * inch))
+        story.append(Spacer(1, 0.045 * inch))
 
         groups = get_group_values(sheet, category_cols)
         spans = group_spans(groups)
@@ -1090,29 +1090,29 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             row.append(rich_cell(f'<b>{pdf_number_fmt(r["Total"])}</b>', total_style))
             matrix.append(row)
 
-        fixed = 2.18 * inch + 0.42 * inch + 0.78 * inch
+        fixed = 1.78 * inch + 0.48 * inch + 0.76 * inch
         remaining = page_width - fixed
         raw_stat_widths = []
         for col in category_cols:
             text_len = max(len(str(col)), 5)
-            raw_stat_widths.append(min(0.82 * inch, max(0.30 * inch, (0.18 + text_len * 0.029) * inch)))
+            raw_stat_widths.append(min(0.78 * inch, max(0.29 * inch, (0.16 + text_len * 0.027) * inch)))
         raw_total = sum(raw_stat_widths) if raw_stat_widths else 1
         scale = remaining / raw_total
-        stat_widths = [max(0.30 * inch, w * scale) for w in raw_stat_widths]
-        col_widths = [2.18 * inch, 0.42 * inch] + stat_widths + [0.78 * inch]
+        stat_widths = [max(0.29 * inch, w * scale) for w in raw_stat_widths]
+        col_widths = [1.78 * inch, 0.48 * inch] + stat_widths + [0.76 * inch]
 
-        row_heights = [0.23 * inch, 0.31 * inch] + [None] * len(full)
+        row_heights = [0.18 * inch, 0.26 * inch] + [None] * len(full)
         item_table = Table(matrix, colWidths=col_widths, rowHeights=row_heights, repeatRows=2)
         ts = [
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("ALIGN", (0, first_data_row), (0, -1), "LEFT"),
-            ("TOPPADDING", (0, 0), (-1, -1), 2.6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 1.0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 1.0),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.15),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.15),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0.65),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0.65),
             ("LINEABOVE", (0, 0), (-1, 0), 2.0, RANGERS_BLUE),
-            ("LINEBELOW", (0, -1), (-1, -1), 0.65, RANGERS_BLUE),
+            ("LINEBELOW", (0, -1), (-1, -1), 0.45, RANGERS_BLUE),
             ("LINEBELOW", (0, 1), (-1, 1), 0.45, colors.HexColor("#A8A8A8")),
             ("ROWBACKGROUNDS", (0, first_data_row), (-1, -1), [colors.white, LIGHT_GRAY]),
         ]
