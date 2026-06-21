@@ -805,25 +805,25 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
         fontSize=6.6,
-        leading=7.6,
-        textColor=RANGERS_BLUE,
+        leading=7.3,
+        textColor=colors.white,
         alignment=TA_CENTER,
     )
     header_style = ParagraphStyle(
         "PDFHeader",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=7.0,
-        leading=7.8,
-        textColor=RANGERS_BLUE,
+        fontSize=7.4,
+        leading=8.0,
+        textColor=colors.white,
         alignment=TA_CENTER,
     )
     player_style = ParagraphStyle(
         "PDFPlayer",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=9.0,
-        leading=9.8,
+        fontSize=9.8,
+        leading=10.7,
         textColor=RANGERS_BLUE,
         alignment=TA_LEFT,
     )
@@ -831,8 +831,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFTeam",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=5.2,
-        leading=5.8,
+        fontSize=5.15,
+        leading=5.55,
         textColor=colors.white,
         alignment=TA_CENTER,
     )
@@ -840,8 +840,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFValue",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=7.7,
-        leading=8.4,
+        fontSize=6.9,
+        leading=7.4,
         textColor=BLACK,
         alignment=TA_CENTER,
     )
@@ -849,8 +849,8 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         "PDFTotal",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=9.8,
-        leading=10.4,
+        fontSize=10.0,
+        leading=10.55,
         textColor=colors.HexColor("#064E3B"),
         alignment=TA_CENTER,
     )
@@ -859,7 +859,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         parent=styles["Normal"],
         fontName="Helvetica-Oblique",
         fontSize=6.6,
-        leading=7.6,
+        leading=7.3,
         textColor=RANGERS_BLUE,
         alignment=TA_LEFT,
     )
@@ -901,10 +901,10 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         except Exception:
             q = 0
         if abs(v) < 0.00001 and abs(q) < 0.00001:
-            return '<font color="#111827"><b>0</b></font> <font size="5.5">(0)</font>'
+            return '<font color="#111827"><b>0(0)</b></font>'
         color = "#006B2E" if v > 0 else ("#BA0C2F" if v < 0 else "#111827")
         amount = pdf_number_fmt(v)
-        return f'<font color="{color}"><b>{amount}</b></font> <font size="5.8">({qty_fmt(q)})</font>'
+        return f'<font color="{color}"><b>{amount}({qty_fmt(q)})</b></font>'
 
     def team_pdf_label(value):
         value = str(value).strip().upper()
@@ -1041,8 +1041,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
 
     def build_footer():
         note = "Note: Values shown in Dominican Pesos (DOP). Numbers in parentheses indicate the number of times each incentive was achieved."
-        slogan = 'COMPETE. <font color="#BA0C2F">TOGETHER.</font> WIN.'
-        ft = Table([[Paragraph(note, note_style), Paragraph(slogan, slogan_style)]], colWidths=[9.30 * inch, 4.30 * inch])
+        ft = Table([[Paragraph(note, note_style)]], colWidths=[13.60 * inch])
         ft.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -1107,12 +1106,14 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("ALIGN", (0, first_data_row), (0, -1), "LEFT"),
-            ("TOPPADDING", (0, 0), (-1, -1), 1.15),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.15),
+            ("TOPPADDING", (0, 0), (-1, -1), 0.78),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0.78),
             ("LEFTPADDING", (0, 0), (-1, -1), 0.65),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0.65),
+            ("BACKGROUND", (0, 0), (-1, 1), RANGERS_GRAY),
+            ("TEXTCOLOR", (0, 0), (-1, 1), colors.white),
             ("LINEABOVE", (0, 0), (-1, 0), 2.0, RANGERS_BLUE),
-            ("LINEBELOW", (0, -1), (-1, -1), 0.45, RANGERS_BLUE),
+            ("LINEBELOW", (0, -1), (-1, -1), 0.22, RANGERS_BLUE),
             ("LINEBELOW", (0, 1), (-1, 1), 0.45, colors.HexColor("#A8A8A8")),
             ("ROWBACKGROUNDS", (0, first_data_row), (-1, -1), [colors.white, LIGHT_GRAY]),
         ]
@@ -1139,7 +1140,6 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
 
         item_table.setStyle(TableStyle(ts))
         story.append(item_table)
-        story.append(build_footer())
         if page_idx < len(pages) - 1:
             story.append(PageBreak())
 
