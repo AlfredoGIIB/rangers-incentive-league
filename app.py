@@ -7,11 +7,11 @@ import pandas as pd
 import streamlit as st
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import legal, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 
 st.set_page_config(
     page_title="Rangers Incentive League",
@@ -744,79 +744,135 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         pagesize=landscape(legal),
         rightMargin=0.18 * inch,
         leftMargin=0.18 * inch,
-        topMargin=0.22 * inch,
-        bottomMargin=0.20 * inch,
+        topMargin=0.18 * inch,
+        bottomMargin=0.18 * inch,
     )
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "RangersTitle",
-        parent=styles["Title"],
+
+    title_big = ParagraphStyle(
+        "TitleBig",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=30,
+        leading=31,
+        textColor=colors.HexColor("#002D72"),
+        alignment=TA_LEFT,
+    )
+    title_red = ParagraphStyle(
+        "TitleRed",
+        parent=styles["Normal"],
         fontName="Helvetica-Bold",
         fontSize=16,
         leading=18,
-        textColor=colors.white,
-        alignment=TA_CENTER,
-        spaceAfter=4,
+        textColor=colors.HexColor("#BA0C2F"),
+        alignment=TA_LEFT,
     )
-    subtitle_style = ParagraphStyle(
-        "RangersSubtitle",
+    updated_style = ParagraphStyle(
+        "Updated",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=10,
+        textColor=colors.HexColor("#002D72"),
+        alignment=TA_LEFT,
+    )
+    section_badge_style = ParagraphStyle(
+        "Badge",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=8,
-        leading=10,
+        fontSize=11,
+        leading=12,
         textColor=colors.white,
         alignment=TA_CENTER,
-    )
-    section_style = ParagraphStyle(
-        "Section",
-        parent=styles["Heading2"],
-        fontName="Helvetica-Bold",
-        fontSize=9,
-        leading=11,
-        textColor=colors.HexColor("#002D72"),
-        spaceBefore=4,
-        spaceAfter=3,
     )
     cell_style = ParagraphStyle(
         "Cell",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=5.0,
-        leading=5.45,
-        textColor=colors.HexColor("#1f2937"),
+        fontSize=4.7,
+        leading=5.15,
+        textColor=colors.black,
         alignment=TA_CENTER,
     )
     cell_bold_style = ParagraphStyle(
         "CellBold",
         parent=cell_style,
         fontName="Helvetica-Bold",
-        fontSize=6.0,
-        leading=6.4,
-        textColor=colors.HexColor("#002D72"),
+        fontSize=5.4,
+        leading=5.8,
+        textColor=colors.black,
+        alignment=TA_CENTER,
+    )
+    player_style = ParagraphStyle(
+        "PlayerCell",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+        fontSize=5.5,
+        leading=5.95,
+        textColor=colors.black,
+        alignment=TA_CENTER,
     )
     header_cell_style = ParagraphStyle(
         "HeaderCell",
         parent=cell_style,
         fontName="Helvetica-Bold",
-        fontSize=4.8,
-        leading=5.25,
-        textColor=colors.white,
+        fontSize=5.0,
+        leading=5.4,
+        textColor=colors.HexColor("#002D72"),
+        alignment=TA_CENTER,
+    )
+    group_cell_style = ParagraphStyle(
+        "GroupCell",
+        parent=header_cell_style,
+        fontName="Helvetica-Bold",
+        fontSize=5.7,
+        leading=6.1,
+        textColor=colors.HexColor("#002D72"),
         alignment=TA_CENTER,
     )
     total_cell_style = ParagraphStyle(
         "TotalCell",
         parent=cell_style,
         fontName="Helvetica-Bold",
-        fontSize=6.1,
-        leading=6.5,
-        textColor=colors.HexColor("#111827"),
+        fontSize=7.0,
+        leading=7.4,
+        textColor=colors.HexColor("#002D72"),
         alignment=TA_CENTER,
     )
+    note_style = ParagraphStyle(
+        "Note",
+        parent=styles["Normal"],
+        fontName="Helvetica-Oblique",
+        fontSize=7,
+        leading=8,
+        textColor=colors.HexColor("#002D72"),
+        alignment=TA_LEFT,
+    )
+    motto_style = ParagraphStyle(
+        "Motto",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        leading=11,
+        textColor=colors.HexColor("#002D72"),
+        alignment=TA_RIGHT,
+    )
 
-    def pcell(value, bold=False, header=False, total=False):
+    def pcell(value, bold=False, header=False, total=False, group=False, player=False):
         text = str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         text = text.replace("\n", "<br/>")
-        style = header_cell_style if header else (total_cell_style if total else (cell_bold_style if bold else cell_style))
+        if group:
+            style = group_cell_style
+        elif header:
+            style = header_cell_style
+        elif total:
+            style = total_cell_style
+        elif player:
+            style = player_style
+        elif bold:
+            style = cell_bold_style
+        else:
+            style = cell_style
         return Paragraph(text, style)
 
     def qty_fmt(qty):
@@ -838,178 +894,193 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         except Exception:
             q = 0
         if abs(v) < 0.00001 and abs(q) < 0.00001:
-            return "—"
+            return "0 (0)"
         return f"{pdf_number_fmt(v)} ({qty_fmt(q)})"
 
-    def get_pdf_top_rows(sheet_name, category_cols):
-        """Return compact merged metadata rows for the PDF table.
+    def normalize_pdf_date(label):
+        text = str(label).strip()
+        for fmt in ["%d/%m/%Y", "%m/%d/%Y", "%Y-%m-%d"]:
+            try:
+                dt = datetime.strptime(text, fmt)
+                return dt.strftime("%B %d, %Y").replace(" 0", " ")
+            except Exception:
+                pass
+        return text
 
-        The source sheet uses top rows to explain each incentive item. This
-        function preserves that structure but groups repeated cells visually:
-        HITTING / DEFENSE / TEAM and DAILY / WEEKLY / TEAM are shown once per
-        span instead of repeated above every item.
+    pdf_updated_label = normalize_pdf_date(updated_label)
+
+    def get_meta_rows_and_spans(sheet_name, category_cols):
+        """Build merged section rows from the sheet metadata.
+
+        The first returned row is the baseball area (HITTING / DEFENSE / TEAM when
+        present). The second returned row is the incentive timing/type row
+        (DAILY / WEEKLY / TEAM when present). Weight rows are intentionally omitted.
         """
         if hasattr(excel_source, "seek"):
             excel_source.seek(0)
         raw_meta = pd.read_excel(excel_source, sheet_name=sheet_name, header=None)
         header_row, weight_row = detect_header_and_weight_rows(raw_meta)
         header_values = raw_meta.iloc[header_row].tolist()
-
         col_positions = {}
         for idx, h in enumerate(header_values):
             if pd.notna(h):
                 col_positions[str(h).strip()] = idx
-
         source_positions = [col_positions.get(str(col).strip()) for col in category_cols]
         valid_positions = [pos for pos in source_positions if pos is not None]
         min_pos = min(valid_positions) if valid_positions else 0
         max_pos = max(valid_positions) if valid_positions else raw_meta.shape[1] - 1
 
-        def clean_meta_value(v):
+        def clean(v):
             if pd.isna(v):
                 return ""
             text = str(v).strip()
-            if text.lower() == "nan":
+            if not text or text.lower() == "nan":
                 return ""
-            if "INCENTIVOS" in text.upper() or "TEXAS RANGERS" in text.upper() or "ACTUALIZ" in text.upper():
+            upper = text.upper()
+            if "INCENTIVOS" in upper or "TEXAS RANGERS" in upper or "ACTUALIZ" in upper:
                 return ""
             return text
 
-        def row_values_at(ridx):
-            return [clean_meta_value(raw_meta.iat[ridx, c]) if c < raw_meta.shape[1] else "" for c in range(raw_meta.shape[1])]
+        def row_values(ridx):
+            return [clean(raw_meta.iat[ridx, c]) if c < raw_meta.shape[1] else "" for c in range(raw_meta.shape[1])]
 
-        def ff_all(raw_vals):
+        def ffill_region(vals):
+            out = []
             last = ""
-            filled = []
-            for c, val in enumerate(raw_vals):
+            for c, val in enumerate(vals):
                 if c < min_pos or c > max_pos:
-                    filled.append(val)
+                    out.append(val)
                     continue
-                if val != "":
+                if val:
                     last = val
-                filled.append(last)
-            return filled
+                out.append(last)
+            return out
 
-        def values_for_category_positions(filled):
-            return [filled[pos] if pos is not None and pos < len(filled) else "" for pos in source_positions]
-
-        # Identify text metadata rows above the header. Ignore weight/title rows.
         text_rows = []
         for ridx in range(header_row):
             if ridx == weight_row:
                 continue
-            raw_vals = row_values_at(ridx)
-            region_vals = [raw_vals[c] for c in range(min_pos, max_pos + 1) if c < len(raw_vals)]
-            non_empty = [v for v in region_vals if str(v).strip() != ""]
+            vals = row_values(ridx)
+            region = [vals[c] for c in range(min_pos, max_pos + 1) if c < len(vals)]
+            non_empty = [v for v in region if v]
             if not non_empty:
                 continue
-            text_count = 0
+            # Keep rows with text labels, skip numeric rows.
+            has_text = False
             for val in non_empty:
                 try:
                     float(str(val).replace("RD$", "").replace(",", ""))
                 except Exception:
-                    text_count += 1
-            if text_count:
+                    has_text = True
+            if has_text:
                 text_rows.append(ridx)
 
-        meta_rows = []
-        span_commands = []
+        rows = []
+        spans = []
         parent_groups = None
 
-        def append_grouped_row(label, values):
-            row_index = len(meta_rows)
+        def append_row(values):
+            row_index = len(rows)
             row = [pcell(""), pcell(""), pcell(""), pcell("")]
             groups = []
             start = 0
-            while start < len(values):
-                val = str(values[start]).strip().upper()
+            upper_values = [str(v).strip().upper() for v in values]
+            while start < len(upper_values):
+                val = upper_values[start]
                 end = start
-                while end + 1 < len(values) and str(values[end + 1]).strip().upper() == val:
+                while end + 1 < len(upper_values) and upper_values[end + 1] == val:
                     end += 1
                 groups.append((start, end, val))
                 start = end + 1
-            for i, val in enumerate([str(v).strip().upper() for v in values]):
-                # Show value only in first cell of a group; merged cells take the label.
-                first_in_group = any(g[0] == i for g in groups)
-                row.append(pcell(val if first_in_group else "", bold=True))
-            meta_rows.append(row)
-            # Merge label cells over Rank/Player/Team/Total area.
-            span_commands.append(("SPAN", (0, row_index), (3, row_index)))
+            for idx, val in enumerate(upper_values):
+                row.append(pcell(val if any(g[0] == idx for g in groups) else "", group=True))
+            rows.append(row)
+            # Blank cells above Rank/Player/Team/Total should be invisible.
+            spans.append(("SPAN", (0, row_index), (3, row_index)))
             for start, end, val in groups:
                 if val and end > start:
-                    span_commands.append(("SPAN", (4 + start, row_index), (4 + end, row_index)))
+                    spans.append(("SPAN", (4 + start, row_index), (4 + end, row_index)))
 
-        # First text row can be item area (HITTING/DEFENSE/TEAM) or directly type.
-        for n, ridx in enumerate(text_rows):
-            raw_vals = row_values_at(ridx)
-            filled = ff_all(raw_vals)
-            vals = values_for_category_positions(filled)
-            upper_vals = [str(v).strip().upper() for v in vals]
-            unique_vals = {v for v in upper_vals if v}
-
-            # If a later metadata row is blank under a TEAM area, classify it as TEAM.
+        for ridx in text_rows[:2]:
+            raw_vals = row_values(ridx)
+            filled = ffill_region(raw_vals)
+            values = [filled[pos] if pos is not None and pos < len(filled) else "" for pos in source_positions]
+            upper = [str(v).strip().upper() for v in values]
+            # The second metadata row often has blanks under TEAM columns. Fill those with TEAM.
             if parent_groups is not None:
-                raw_item_vals = values_for_category_positions(raw_vals)
                 adjusted = []
+                raw_item_values = [raw_vals[pos] if pos is not None and pos < len(raw_vals) else "" for pos in source_positions]
                 last_by_parent = {}
-                for i, raw_v in enumerate(raw_item_vals):
+                for i, raw_v in enumerate(raw_item_values):
                     parent = parent_groups[i] if i < len(parent_groups) else ""
                     if str(raw_v).strip():
                         last_by_parent[parent] = str(raw_v).strip()
                         adjusted.append(str(raw_v).strip())
                     else:
-                        if str(parent).strip().upper() == "TEAM":
-                            adjusted.append("TEAM")
-                        else:
-                            adjusted.append(last_by_parent.get(parent, ""))
-                vals = adjusted
-                upper_vals = [str(v).strip().upper() for v in vals]
-                unique_vals = {v for v in upper_vals if v}
+                        adjusted.append("TEAM" if str(parent).strip().upper() == "TEAM" else last_by_parent.get(parent, ""))
+                values = adjusted
+                upper = [str(v).strip().upper() for v in values]
+            append_row(values)
+            parent_groups = upper
+        return rows, spans
 
-            lowered = {v.lower() for v in unique_vals}
-            is_type_row = bool(lowered & {"daily", "weekly", "team", "diario", "semana", "semanal", "equipo"})
-            label = ("Tipo" if lang == "ES" else "Type") if is_type_row else ("Grupo" if lang == "ES" else "Group")
-            append_grouped_row(label, vals)
-
-            # Save parent group if this looks like the area row (HITTING/DEFENSE/TEAM).
-            if not is_type_row or ("HITTING" in unique_vals or "DEFENSE" in unique_vals):
-                parent_groups = upper_vals
-
-        # Weight row: group label cells but keep individual weights visible.
-        if weight_row is not None and weight_row < raw_meta.shape[0]:
-            weight_values = []
-            for col in category_cols:
-                pos = col_positions.get(str(col).strip())
-                val = raw_meta.iat[weight_row, pos] if pos is not None and pos < raw_meta.shape[1] else ""
-                if pd.isna(val) or str(val).strip() == "":
-                    weight_values.append("")
-                else:
-                    weight_values.append(pdf_number_fmt(val))
-            label = "Peso" if lang == "ES" else "Weight"
-            row_index = len(meta_rows)
-            meta_rows.append([pcell(""), pcell(""), pcell(""), pcell("")] + [pcell(v, bold=True) for v in weight_values])
-            span_commands.append(("SPAN", (0, row_index), (3, row_index)))
-
-        return meta_rows, span_commands
-
-    def blend(c1, c2, pct):
+    def blend_rgb(c1, c2, pct):
         pct = max(0, min(1, pct))
         return tuple(int(c1[i] + (c2[i] - c1[i]) * pct) for i in range(3))
 
     def total_gradient_color(value, min_value, max_value):
-        # Low totals = red, midpoint = pale yellow, high totals = green.
-        red = (248, 113, 113)
+        red = (254, 202, 202)
         yellow = (254, 243, 199)
-        green = (134, 239, 172)
+        green = (187, 247, 208)
         if max_value == min_value:
             rgb = yellow
         else:
             pct = (float(value) - float(min_value)) / (float(max_value) - float(min_value))
             if pct <= 0.5:
-                rgb = blend(red, yellow, pct / 0.5)
+                rgb = blend_rgb(red, yellow, pct / 0.5)
             else:
-                rgb = blend(yellow, green, (pct - 0.5) / 0.5)
+                rgb = blend_rgb(yellow, green, (pct - 0.5) / 0.5)
         return colors.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
+
+    def build_header(section_label):
+        logo = None
+        if 'LOGO_PATH' in globals() and LOGO_PATH.exists():
+            logo = Image(str(LOGO_PATH), width=0.92 * inch, height=1.02 * inch, kind="proportional")
+        else:
+            logo = Paragraph("T", title_big)
+
+        title_block = [
+            Paragraph("TEXAS RANGERS", title_big),
+            Paragraph("2026 DSL INCENTIVE SUMMARY", title_red),
+            Paragraph(f"Last Updated: {pdf_updated_label}", updated_style),
+        ]
+        left = Table([[logo, title_block]], colWidths=[1.05 * inch, 5.0 * inch])
+        left.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+
+        badge = Table([[Paragraph(section_label.upper(), section_badge_style)]], colWidths=[2.05 * inch], rowHeights=[0.33 * inch])
+        badge.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#002D72") if section_label.upper() == "PITCHERS" else colors.HexColor("#BA0C2F")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        header = Table([[left, "", badge]], colWidths=[6.0 * inch, 5.3 * inch, 2.1 * inch])
+        header.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        return header
 
     story = []
     pages = [s for s in ["Position Players", "Pitchers"] if s in sheet_options]
@@ -1018,37 +1089,28 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
 
     for page_idx, sheet in enumerate(pages):
         df, category_cols, money_cols, weight_map = process_sheet(excel_source, sheet)
-        group_label = ("Jugadores de Posición" if sheet == "Position Players" else "Lanzadores") if lang == "ES" else ("Position Players" if sheet == "Position Players" else "Pitchers")
-        header_title = "DSL 2026 PROGRAMA DE INCENTIVOS" if lang == "ES" else "DSL 2026 INCENTIVE PROGRAM"
-        updated_word = "Actualizado" if lang == "ES" else "Updated"
-        header_subtitle = f"Texas Rangers Baseball Club · {group_label} · {updated_word}: {updated_label}"
-        header = Table([[Paragraph(header_title, title_style)], [Paragraph(header_subtitle, subtitle_style)]], colWidths=[13.60 * inch])
-        header.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#002D72")),
-            ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#002D72")),
-            ("LINEBELOW", (0, -1), (-1, -1), 3, colors.HexColor("#BA0C2F")),
-            ("TOPPADDING", (0, 0), (-1, -1), 7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-        ]))
-        story.append(header)
+        section_label = "Position Players" if sheet == "Position Players" else "Pitchers"
+        story.append(build_header(section_label))
         story.append(Spacer(1, 0.06 * inch))
 
-        story.append(Paragraph(t("full_items_pdf"), section_style))
-        headers = ["Rank", "Player" if lang == "EN" else "Jugador", "Team" if lang == "EN" else "Equipo", "Total RD$"] + [str(c) for c in category_cols]
-        meta_rows, meta_spans = get_pdf_top_rows(sheet, category_cols)
-        money_matrix = meta_rows + [[pcell(h, header=True) for h in headers]]
+        # Main table
+        headers = ["Rank", "Player", "R / B", "Total RD$"] + [str(c) for c in category_cols]
+        meta_rows, meta_spans = get_meta_rows_and_spans(sheet, category_cols)
+        matrix = meta_rows + [[pcell(h, header=True) for h in headers]]
         header_pdf_row = len(meta_rows)
         first_data_row = header_pdf_row + 1
+
         full = df.sort_values("Rank").copy()
         totals = pd.to_numeric(full["Total"], errors="coerce").fillna(0)
         min_total = float(totals.min()) if not totals.empty else 0
         max_total = float(totals.max()) if not totals.empty else 0
 
         for _, r in full.iterrows():
+            team_raw = str(r.get("Team", "")).strip().upper()
             row = [
                 pcell(f"#{int(r['Rank'])}"),
-                pcell(r["Player"], bold=True),
-                pcell(team_display_static(r.get("Team", ""), lang)),
+                pcell(r["Player"], player=True),
+                pcell("R" if team_raw == "R" else ("B" if team_raw == "B" else team_raw), bold=True),
                 pcell(pdf_number_fmt(r["Total"]), total=True),
             ]
             for c in category_cols:
@@ -1056,83 +1118,124 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
                 qty = float(r[c]) if pd.notna(r[c]) else 0
                 val = qty * (0 if pd.isna(w) else w)
                 row.append(pcell(money_qty_fmt(val, qty)))
-            money_matrix.append(row)
+            matrix.append(row)
 
         page_width = 13.60 * inch
-        fixed = 0.38*inch + 1.72*inch + 0.50*inch + 0.88*inch
+        fixed = 0.40 * inch + 1.55 * inch + 0.42 * inch + 0.80 * inch
         remaining = page_width - fixed
         raw_stat_widths = []
         for col in category_cols:
-            text_len = max(len(str(col)), 7)
-            raw_stat_widths.append(min(0.95*inch, max(0.34*inch, (0.20 + text_len * 0.035) * inch)))
+            text_len = max(len(str(col)), 5)
+            raw_stat_widths.append(min(0.90 * inch, max(0.32 * inch, (0.18 + text_len * 0.032) * inch)))
         raw_total = sum(raw_stat_widths) if raw_stat_widths else 1
         scale = remaining / raw_total
-        stat_widths = [max(0.32*inch, w * scale) for w in raw_stat_widths]
-        col_widths = [0.38*inch, 1.72*inch, 0.50*inch, 0.88*inch] + stat_widths
-        item_table = Table(money_matrix, colWidths=col_widths, repeatRows=header_pdf_row + 1)
+        stat_widths = [max(0.31 * inch, w * scale) for w in raw_stat_widths]
+        col_widths = [0.40 * inch, 1.55 * inch, 0.42 * inch, 0.80 * inch] + stat_widths
+        item_table = Table(matrix, colWidths=col_widths, repeatRows=header_pdf_row + 1)
+
         ts = [
-            ("BACKGROUND", (0, 0), (-1, max(0, header_pdf_row - 1)), colors.HexColor("#EEF2F7")),
-            ("TEXTCOLOR", (0, 0), (-1, max(0, header_pdf_row - 1)), colors.HexColor("#002D72")),
-            ("FONTNAME", (0, 0), (-1, max(0, header_pdf_row - 1)), "Helvetica-Bold"),
-            ("BACKGROUND", (0, header_pdf_row), (-1, header_pdf_row), colors.HexColor("#002D72")),
-            ("TEXTCOLOR", (0, header_pdf_row), (-1, header_pdf_row), colors.white),
-            ("FONTNAME", (0, header_pdf_row), (-1, header_pdf_row), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.22, colors.HexColor("#857874")),
-            ("FONTSIZE", (0, 0), (-1, -1), 4.8),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ROWBACKGROUNDS", (0, first_data_row), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.35),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.35),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0.85),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0.85),
+            # No visible cells above Rank/Player/R-B/Total
+            ("BACKGROUND", (0, 0), (3, max(0, header_pdf_row - 1)), colors.white),
+            ("TEXTCOLOR", (0, 0), (3, max(0, header_pdf_row - 1)), colors.white),
+            # Column header row attached directly to the table.
+            ("BACKGROUND", (0, header_pdf_row), (-1, header_pdf_row), colors.white),
+            ("TEXTCOLOR", (0, header_pdf_row), (-1, header_pdf_row), colors.HexColor("#002D72")),
+            ("FONTNAME", (0, header_pdf_row), (-1, header_pdf_row), "Helvetica-Bold"),
+            ("LINEBELOW", (0, header_pdf_row), (-1, header_pdf_row), 0.55, colors.HexColor("#857874")),
+            # Executive table lines.
+            ("LINEABOVE", (0, 0), (-1, 0), 3.2, colors.HexColor("#002D72")),
+            ("LINEBELOW", (0, -1), (-1, -1), 3.2, colors.HexColor("#002D72")),
+            ("ROWBACKGROUNDS", (0, first_data_row), (-1, -1), [colors.white, colors.HexColor("#F2F3F4")]),
             ("FONTNAME", (1, first_data_row), (1, -1), "Helvetica-Bold"),
             ("FONTNAME", (3, first_data_row), (3, -1), "Helvetica-Bold"),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("TOPPADDING", (0, 0), (-1, -1), 1.5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
-            ("LEFTPADDING", (0, 0), (-1, -1), 1.2),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 1.2),
         ]
-
         ts.extend(meta_spans)
 
-        # Weight row styling: positive weights green, negative weights Rangers red, white text.
-        weight_pdf_row = header_pdf_row - 1 if header_pdf_row > 0 else None
-        if weight_pdf_row is not None:
-            for cidx, col in enumerate(category_cols, start=4):
+        # Vertical separators only at meaningful section boundaries.
+        # Static separators after Player/R-B and before Total.
+        for boundary_col in [1, 2, 3]:
+            ts.append(("LINEAFTER", (boundary_col, header_pdf_row), (boundary_col, -1), 0.35, colors.HexColor("#B8B8B8")))
+        # Section boundaries based on merged metadata groups in the first metadata row.
+        if meta_rows:
+            first_meta_values = []
+            for c in range(4, len(matrix[0])):
                 try:
-                    wv = float(weight_map.get(col, 0))
+                    first_meta_values.append(matrix[0][c].getPlainText())
                 except Exception:
-                    wv = 0
-                if wv > 0:
-                    ts.append(("BACKGROUND", (cidx, weight_pdf_row), (cidx, weight_pdf_row), colors.HexColor("#00843D")))
-                    ts.append(("TEXTCOLOR", (cidx, weight_pdf_row), (cidx, weight_pdf_row), colors.white))
-                    ts.append(("FONTNAME", (cidx, weight_pdf_row), (cidx, weight_pdf_row), "Helvetica-Bold"))
-                elif wv < 0:
-                    ts.append(("BACKGROUND", (cidx, weight_pdf_row), (cidx, weight_pdf_row), colors.HexColor("#BA0C2F")))
-                    ts.append(("TEXTCOLOR", (cidx, weight_pdf_row), (cidx, weight_pdf_row), colors.white))
-                    ts.append(("FONTNAME", (cidx, weight_pdf_row), (cidx, weight_pdf_row), "Helvetica-Bold"))
+                    first_meta_values.append("")
+            last_label = None
+            for i, label in enumerate(first_meta_values):
+                text = str(label).strip()
+                if text:
+                    last_label = text
+                first_meta_values[i] = last_label or ""
+            for i in range(len(first_meta_values) - 1):
+                if first_meta_values[i] != first_meta_values[i + 1]:
+                    actual_col = 4 + i
+                    ts.append(("LINEAFTER", (actual_col, 0), (actual_col, -1), 0.65, colors.HexColor("#857874")))
+            # A fine separator below metadata rows, before headers.
+            ts.append(("LINEBELOW", (4, header_pdf_row - 1), (-1, header_pdf_row - 1), 0.45, colors.HexColor("#B8B8B8")))
 
-        # Total earnings gradient: highest totals green, lowest totals red.
+        # Color team column cells.
         for ridx, (_, r) in enumerate(full.iterrows(), start=first_data_row):
-            ts.append(("BACKGROUND", (3, ridx), (3, ridx), total_gradient_color(r["Total"], min_total, max_total)))
+            team_raw = str(r.get("Team", "")).strip().upper()
+            if team_raw == "R":
+                ts.append(("BACKGROUND", (2, ridx), (2, ridx), colors.HexColor("#BA0C2F")))
+                ts.append(("TEXTCOLOR", (2, ridx), (2, ridx), colors.white))
+                ts.append(("FONTNAME", (2, ridx), (2, ridx), "Helvetica-Bold"))
+            elif team_raw == "B":
+                ts.append(("BACKGROUND", (2, ridx), (2, ridx), colors.HexColor("#002D72")))
+                ts.append(("TEXTCOLOR", (2, ridx), (2, ridx), colors.white))
+                ts.append(("FONTNAME", (2, ridx), (2, ridx), "Helvetica-Bold"))
 
-            # Color item text only: green for gains, Rangers red for losses.
+            ts.append(("BACKGROUND", (3, ridx), (3, ridx), total_gradient_color(r["Total"], min_total, max_total)))
+            if float(r["Total"]) >= 0:
+                ts.append(("TEXTCOLOR", (3, ridx), (3, ridx), colors.HexColor("#166534")))
+            else:
+                ts.append(("TEXTCOLOR", (3, ridx), (3, ridx), colors.HexColor("#BA0C2F")))
+
             for cidx, c in enumerate(category_cols, start=4):
                 w = weight_map.get(c, 0)
                 qty = float(r[c]) if pd.notna(r[c]) else 0
                 val = qty * (0 if pd.isna(w) else w)
                 if val > 0:
-                    ts.append(("BACKGROUND", (cidx, ridx), (cidx, ridx), colors.HexColor("#DCFCE7")))
                     ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#166534")))
+                    ts.append(("FONTNAME", (cidx, ridx), (cidx, ridx), "Helvetica-Bold"))
                 elif val < 0:
-                    ts.append(("BACKGROUND", (cidx, ridx), (cidx, ridx), colors.HexColor("#FEE2E2")))
-                    ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#991B1B")))
+                    ts.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), colors.HexColor("#BA0C2F")))
+                    ts.append(("FONTNAME", (cidx, ridx), (cidx, ridx), "Helvetica-Bold"))
+
         item_table.setStyle(TableStyle(ts))
         story.append(item_table)
+        story.append(Spacer(1, 0.07 * inch))
+        foot = Table(
+            [[
+                Paragraph("Note: Values shown in Dominican Pesos (DOP). Numbers in parentheses indicate the number of times each incentive was achieved.", note_style),
+                Paragraph('COMPETE. <font color="#BA0C2F">TOGETHER.</font> WIN.', motto_style),
+            ]],
+            colWidths=[9.5 * inch, 4.0 * inch],
+        )
+        foot.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(foot)
+
         if page_idx < len(pages) - 1:
             story.append(PageBreak())
 
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
-
 def clear_query_and_go_home():
     st.query_params.clear()
     st.session_state["view"] = "home"
@@ -1374,6 +1477,7 @@ def show_player_page(df, category_cols, weight_map, selected_player, group_name,
 # App
 # -----------------------------
 DEFAULT_EXCEL_PATH = Path(__file__).with_name("Incentives System - DR TEX 2026.xlsx")
+LOGO_PATH = Path(__file__).with_name("Texas-Rangers-Symbol-cropped.png")
 
 st.sidebar.title("Rangers Incentive League")
 uploaded_file = st.sidebar.file_uploader(t("upload_label"), type=["xlsx"])
