@@ -921,7 +921,37 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         return value
 
     def get_group_values(sheet_name, category_cols):
-        """Return one metadata row such as HITTING / DEFENSE / DAILY / WEEKLY / TEAM."""
+        """Return the top metadata row used for merged PDF table headers.
+
+        Position Players uses a fixed incentive-frequency rule requested by the
+        program: H10+, E0, W, and Chase% < 20% are TEAM incentives; SL+ is
+        WEEKLY; all other position-player items are DAILY. Pitchers are left
+        untouched and continue reading the existing metadata row from the Excel.
+        """
+        def normalize_item_name(value):
+            return (
+                str(value)
+                .strip()
+                .upper()
+                .replace(" ", "")
+                .replace("_", "")
+                .replace("-", "")
+            )
+
+        if sheet_name == "Position Players":
+            team_items = {"H10+", "E0", "W", "CHASE%<20%", "CHASE%<20", "CHASE<20%", "CHASE<20"}
+            weekly_items = {"SL+"}
+            forced_groups = []
+            for col in category_cols:
+                key = normalize_item_name(col)
+                if key in team_items:
+                    forced_groups.append("TEAM")
+                elif key in weekly_items:
+                    forced_groups.append("WEEKLY")
+                else:
+                    forced_groups.append("DAILY")
+            return forced_groups
+
         if hasattr(excel_source, "seek"):
             excel_source.seek(0)
         raw_meta = pd.read_excel(excel_source, sheet_name=sheet_name, header=None)
@@ -968,9 +998,6 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             upper = [str(v).strip().upper() for v in candidate]
 
             # Prefer the frequency/type row for the PDF header.
-            # Position Players has both a category row (HITTING/DEFENSE/TEAM) and
-            # a type row (DAILY/WEEKLY/TEAM). Both can score equally, so the
-            # tie-breaker below keeps DAILY/WEEKLY/TEAM instead of HITTING/DEFENSE.
             type_score = sum(1 for v in upper if v in {"DAILY", "WEEKLY", "TEAM", "DIARIO", "SEMANAL", "SEMANA", "EQUIPO"})
             group_score = sum(1 for v in upper if v in {"HITTING", "PITCHING", "DEFENSE"})
             total_score = type_score + group_score
