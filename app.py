@@ -949,7 +949,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             return text
 
         best = [""] * len(category_cols)
-        best_score = -1
+        best_score = (-1, -1, -1)
         for ridx in range(header_row):
             if ridx == weight_row:
                 continue
@@ -966,7 +966,15 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
                 filled.append(last)
             candidate = [filled[pos] if pos is not None and pos < len(filled) else "" for pos in source_positions]
             upper = [str(v).strip().upper() for v in candidate]
-            score = sum(1 for v in upper if v in {"HITTING", "PITCHING", "DEFENSE", "DAILY", "WEEKLY", "TEAM"})
+
+            # Prefer the frequency/type row for the PDF header.
+            # Position Players has both a category row (HITTING/DEFENSE/TEAM) and
+            # a type row (DAILY/WEEKLY/TEAM). Both can score equally, so the
+            # tie-breaker below keeps DAILY/WEEKLY/TEAM instead of HITTING/DEFENSE.
+            type_score = sum(1 for v in upper if v in {"DAILY", "WEEKLY", "TEAM", "DIARIO", "SEMANAL", "SEMANA", "EQUIPO"})
+            group_score = sum(1 for v in upper if v in {"HITTING", "PITCHING", "DEFENSE"})
+            total_score = type_score + group_score
+            score = (type_score, total_score, ridx)
             if score > best_score:
                 best_score = score
                 best = upper
