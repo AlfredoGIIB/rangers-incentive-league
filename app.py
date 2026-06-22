@@ -14,8 +14,8 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 
 st.set_page_config(
-    page_title="Rangers Incentive League",
-    page_icon=None,
+    page_title="Texas Rangers | DSL 2026 Programa de Incentivos",
+    page_icon="Texas-Rangers-Symbol-cropped.png",
     layout="wide",
 )
 
