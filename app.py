@@ -30,6 +30,29 @@ st.markdown(
     html, body, [class*="css"], .stApp, .stMarkdown, .stButton button, .stMetric {
         font-family: Inter, Aptos, "Segoe UI", Arial, sans-serif !important;
     }
+
+    [data-testid="stSidebar"] {
+    display: none;
+    }
+
+    [data-testid="collapsedControl"] {
+    display: none;
+    }
+
+    #MainMenu {
+    visibility: hidden;
+    }
+
+    /* Oculta footer */
+    footer {
+        visibility: hidden;
+    }
+
+    /* Oculta header Streamlit */
+    header {
+        visibility: hidden;
+    }
+
     .rangers-banner {
         background: #002D72;
         color: white;
