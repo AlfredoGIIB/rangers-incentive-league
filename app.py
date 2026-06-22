@@ -17,6 +17,7 @@ st.set_page_config(
      page_title="Texas Rangers | DSL 2026 Incentivos",
     page_icon="Texas-Rangers-Symbol-cropped.png",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 # -----------------------------
