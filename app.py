@@ -29,6 +29,37 @@ st.markdown(
     html, body, [class*="css"], .stApp, .stMarkdown, .stButton button, .stMetric {
         font-family: Inter, Aptos, "Segoe UI", Arial, sans-serif !important;
     }
+    
+    /* Oculta completamente el sidebar */
+    [data-testid="stSidebar"] {
+        display: none;
+    }
+
+    /* Oculta botón para abrir sidebar */
+    [data-testid="collapsedControl"] {
+        display: none;
+    }
+
+    /* Oculta navegación multipágina */
+    [data-testid="stSidebarNav"] {
+        display: none;
+    }
+
+    /* Oculta menú Streamlit */
+#   MainMenu {
+        visibility: hidden;
+    }
+
+    /* Oculta footer */
+    footer {
+        visibility: hidden;
+    }
+
+    /* Oculta header Streamlit */
+    header {
+        visibility: hidden;
+    }
+    
     .rangers-banner {
         background: #002D72;
         color: white;
@@ -242,7 +273,7 @@ st.markdown(
 
 TEXT = {
     "ES": {
-        "app_title": "Rangers Incentive League",
+        "app_title": "TEX-DSL 2026 Incentive Program",
         "banner_kicker": "Texas Rangers",
         "banner_title": "DSL 2026 Programa de Incentivos",
         "position_players": "Jugadores de Posición",
@@ -289,8 +320,8 @@ TEXT = {
         "language": "Idioma",
         "updated": "Actualizado",
         "export_summary": "Exportar Resumen",
-        "export_help": "Descarga un PDF ejecutivo con jugadores de posición y lanzadores.",
-        "summary_pdf_name": "resumen_ejecutivo_incentivos_rangers.pdf",
+        "export_help": "Descarga un PDF con jugadores de posición y lanzadores.",
+        "summary_pdf_name": "TEX_DSL_2026_Incentive_Program_Summary.pdf",
         "top_performers_pdf": "Mejores Rendimientos",
         "full_items_pdf": "Ranking General con Items",
         "col_rank": "Rank",
@@ -304,9 +335,9 @@ TEXT = {
         "col_earnings": "Ganancias"
     },
     "EN": {
-        "app_title": "Rangers Incentive League",
+        "app_title": "TEX-DSL 2026 Incentive Program",
         "banner_kicker": "Texas Rangers",
-        "banner_title": "DSL 2026 Incentive Program",
+        "banner_title": "TEX-DSL 2026 Incentive Program",
         "position_players": "Position Players",
         "pitchers": "Pitchers",
         "program_bank": "Program Bank",
@@ -351,8 +382,8 @@ TEXT = {
         "language": "Language",
         "updated": "Updated",
         "export_summary": "Export Summary",
-        "export_help": "Download an executive PDF with position players and pitchers.",
-        "summary_pdf_name": "rangers_incentives_executive_summary.pdf",
+        "export_help": "Download an PDF with position players and pitchers.",
+        "summary_pdf_name": "TEX_DSL_2026_Incentive_Program_Summary.pdf",
         "top_performers_pdf": "Top Performers",
         "full_items_pdf": "Full Standings with Items",
         "col_rank": "Rank",
