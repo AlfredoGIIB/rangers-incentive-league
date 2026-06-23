@@ -266,7 +266,7 @@ st.markdown(
 
 TEXT = {
     "ES": {
-        "app_title": "Rangers Incentive League",
+        "app_title": "TEX-DSL 2026 Incentive Program",
         "banner_kicker": "Texas Rangers",
         "banner_title": "DSL 2026 Programa de Incentivos",
         "position_players": "Jugadores de Posición",
@@ -313,8 +313,8 @@ TEXT = {
         "language": "Idioma",
         "updated": "Actualizado",
         "export_summary": "Exportar Resumen",
-        "export_help": "Descarga un PDF ejecutivo con jugadores de posición y lanzadores.",
-        "summary_pdf_name": "resumen_ejecutivo_incentivos_rangers.pdf",
+        "export_help": "Descarga un PDF con el resumen de ganancias de jugadores de posición y lanzadores.",
+        "summary_pdf_name": "tex_dsl_2026_incentive_program_summary.pdf",
         "top_performers_pdf": "Mejores Rendimientos",
         "full_items_pdf": "Ranking General con Items",
         "col_rank": "Rank",
@@ -328,7 +328,7 @@ TEXT = {
         "col_earnings": "Ganancias"
     },
     "EN": {
-        "app_title": "Rangers Incentive League",
+        "app_title": "DSL 2026 Incentive Program",
         "banner_kicker": "Texas Rangers",
         "banner_title": "DSL 2026 Incentive Program",
         "position_players": "Position Players",
@@ -375,8 +375,8 @@ TEXT = {
         "language": "Language",
         "updated": "Updated",
         "export_summary": "Export Summary",
-        "export_help": "Download an executive PDF with position players and pitchers.",
-        "summary_pdf_name": "rangers_incentives_executive_summary.pdf",
+        "export_help": "Download a PDF summarizing the earnings of position players and pitchers.",
+        "summary_pdf_name": "tex_dsl_2026_incentive_program_summary.pdf",
         "top_performers_pdf": "Top Performers",
         "full_items_pdf": "Full Standings with Items",
         "col_rank": "Rank",
