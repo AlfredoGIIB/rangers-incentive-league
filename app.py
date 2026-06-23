@@ -860,6 +860,18 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         splitLongWords=0,
         wordWrap=None,
     )
+    team_totals_style = ParagraphStyle(
+        "PDFPlayer",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=10.2,
+        leading=11.2,
+        textColor="white",
+        alignment=TA_CENTER,
+        splitLongWords=0,
+        wordWrap=None,
+    )
+
     team_style = ParagraphStyle(
         "PDFTeam",
         parent=styles["Normal"],
@@ -1164,7 +1176,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         # Final row: team/program totals by incentive item. This helps staff see
         # which areas generated or cost the most money overall.
         totals_row = [
-            pcell("TEAM TOTALS", player_style),
+            pcell("TEAM TOTALS", team_totals_style),
             pcell("", team_style),
         ]
         for c in category_cols:
