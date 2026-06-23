@@ -14,10 +14,9 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 
 st.set_page_config(
-     page_title="Texas Rangers | DSL 2026 Incentivos",
-    page_icon="Texas-Rangers-Symbol-cropped.png",
+    page_title="Rangers Incentive League",
+    page_icon=None,
     layout="wide",
-    initial_sidebar_state="collapsed",
 )
 
 # -----------------------------
@@ -30,29 +29,6 @@ st.markdown(
     html, body, [class*="css"], .stApp, .stMarkdown, .stButton button, .stMetric {
         font-family: Inter, Aptos, "Segoe UI", Arial, sans-serif !important;
     }
-
-    [data-testid="stSidebar"] {
-    display: none;
-    }
-
-    [data-testid="collapsedControl"] {
-    display: none;
-    }
-
-    #MainMenu {
-    visibility: hidden;
-    }
-
-    /* Oculta footer */
-    footer {
-        visibility: hidden;
-    }
-
-    /* Oculta header Streamlit */
-    header {
-        visibility: hidden;
-    }
-
     .rangers-banner {
         background: #002D72;
         color: white;
@@ -266,7 +242,7 @@ st.markdown(
 
 TEXT = {
     "ES": {
-        "app_title": "TEX-DSL 2026 Incentive Program",
+        "app_title": "Rangers Incentive League",
         "banner_kicker": "Texas Rangers",
         "banner_title": "DSL 2026 Programa de Incentivos",
         "position_players": "Jugadores de Posición",
@@ -313,8 +289,8 @@ TEXT = {
         "language": "Idioma",
         "updated": "Actualizado",
         "export_summary": "Exportar Resumen",
-        "export_help": "Descarga un PDF con el resumen de ganancias de jugadores de posición y lanzadores.",
-        "summary_pdf_name": "tex_dsl_2026_incentive_program_summary.pdf",
+        "export_help": "Descarga un PDF ejecutivo con jugadores de posición y lanzadores.",
+        "summary_pdf_name": "resumen_ejecutivo_incentivos_rangers.pdf",
         "top_performers_pdf": "Mejores Rendimientos",
         "full_items_pdf": "Ranking General con Items",
         "col_rank": "Rank",
@@ -328,7 +304,7 @@ TEXT = {
         "col_earnings": "Ganancias"
     },
     "EN": {
-        "app_title": "DSL 2026 Incentive Program",
+        "app_title": "Rangers Incentive League",
         "banner_kicker": "Texas Rangers",
         "banner_title": "DSL 2026 Incentive Program",
         "position_players": "Position Players",
@@ -375,8 +351,8 @@ TEXT = {
         "language": "Language",
         "updated": "Updated",
         "export_summary": "Export Summary",
-        "export_help": "Download a PDF summarizing the earnings of position players and pitchers.",
-        "summary_pdf_name": "tex_dsl_2026_incentive_program_summary.pdf",
+        "export_help": "Download an executive PDF with position players and pitchers.",
+        "summary_pdf_name": "rangers_incentives_executive_summary.pdf",
         "top_performers_pdf": "Top Performers",
         "full_items_pdf": "Full Standings with Items",
         "col_rank": "Rank",
@@ -1154,6 +1130,23 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             row.append(rich_cell(f'<b>{pdf_number_fmt(r["Total"])}</b>', total_style))
             matrix.append(row)
 
+        # Final row: team/program totals by incentive item. This helps staff see
+        # which areas generated or cost the most money overall.
+        totals_row = [
+            pcell("TEAM TOTALS", player_style),
+            pcell("", team_style),
+        ]
+        for c in category_cols:
+            w = weight_map.get(c, 0)
+            if pd.isna(w):
+                w = 0
+            item_total = (pd.to_numeric(full[c], errors="coerce").fillna(0) * float(w)).sum()
+            color = "#006B2E" if item_total > 0 else ("#BA0C2F" if item_total < 0 else "#111827")
+            totals_row.append(rich_cell(f'<font color="{color}"><b>{pdf_number_fmt(item_total)}</b></font>', value_style))
+        totals_row.append(rich_cell(f'<b>{pdf_number_fmt(full["Total"].sum())}</b>', total_style))
+        matrix.append(totals_row)
+        total_row_idx = len(matrix) - 1
+
         fixed = 1.78 * inch + 0.48 * inch + 0.76 * inch
         remaining = page_width - fixed
         raw_stat_widths = []
@@ -1165,7 +1158,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         stat_widths = [max(0.29 * inch, w * scale) for w in raw_stat_widths]
         col_widths = [1.78 * inch, 0.48 * inch] + stat_widths + [0.76 * inch]
 
-        row_heights = [0.16 * inch, 0.23 * inch] + [None] * len(full)
+        row_heights = [0.16 * inch, 0.23 * inch] + [None] * (len(full) + 1)
         item_table = Table(matrix, colWidths=col_widths, rowHeights=row_heights, repeatRows=2)
         ts = [
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -1201,6 +1194,24 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
             ts.append(("TEXTCOLOR", (1, ridx), (1, ridx), colors.white))
             ts.append(("FONTNAME", (1, ridx), (1, ridx), "Helvetica-Bold"))
             ts.append(("BACKGROUND", (-1, ridx), (-1, ridx), total_gradient_color(r["Total"], min_total, max_total)))
+
+        # Style final TEAM TOTALS row.
+        ts.append(("LINEABOVE", (0, total_row_idx), (-1, total_row_idx), 0.8, RANGERS_BLUE))
+        ts.append(("BACKGROUND", (0, total_row_idx), (1, total_row_idx), RANGERS_GRAY))
+        ts.append(("TEXTCOLOR", (0, total_row_idx), (1, total_row_idx), colors.white))
+        ts.append(("FONTNAME", (0, total_row_idx), (-1, total_row_idx), "Helvetica-Bold"))
+        for cidx, c in enumerate(category_cols, start=2):
+            w = weight_map.get(c, 0)
+            if pd.isna(w):
+                w = 0
+            item_total = (pd.to_numeric(full[c], errors="coerce").fillna(0) * float(w)).sum()
+            if item_total > 0:
+                ts.append(("BACKGROUND", (cidx, total_row_idx), (cidx, total_row_idx), colors.HexColor("#DCFCE7")))
+            elif item_total < 0:
+                ts.append(("BACKGROUND", (cidx, total_row_idx), (cidx, total_row_idx), colors.HexColor("#FEE2E2")))
+            else:
+                ts.append(("BACKGROUND", (cidx, total_row_idx), (cidx, total_row_idx), colors.HexColor("#F8FAFC")))
+        ts.append(("BACKGROUND", (-1, total_row_idx), (-1, total_row_idx), colors.HexColor("#BBF7D0")))
 
         item_table.setStyle(TableStyle(ts))
         story.append(item_table)
