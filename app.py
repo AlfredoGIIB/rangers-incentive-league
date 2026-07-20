@@ -903,6 +903,24 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         splitLongWords=0,
         wordWrap=None,
     )
+    compact_value_style = ParagraphStyle(
+        "PDFCompactValue",
+        parent=value_style,
+        fontSize=6.15,
+        leading=6.8,
+    )
+    extra_compact_value_style = ParagraphStyle(
+        "PDFExtraCompactValue",
+        parent=value_style,
+        fontSize=5.25,
+        leading=5.8,
+    )
+    compact_total_style = ParagraphStyle(
+        "PDFCompactTotal",
+        parent=total_style,
+        fontSize=8.7,
+        leading=9.4,
+    )
     note_style = ParagraphStyle(
         "PDFNote",
         parent=styles["Normal"],
@@ -939,6 +957,20 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         if abs(q - round(q)) < 0.00001:
             return f"{int(round(q)):,}"
         return f"{q:,.1f}"
+
+    def fit_value_style(value, qty=None, is_total=False):
+        """Choose a safe font size for large PDF values without overlap."""
+        if is_total:
+            text = pdf_number_fmt(value)
+            return compact_total_style if len(text) >= 9 else total_style
+        text = pdf_number_fmt(value)
+        if qty is not None:
+            text += f" ({qty_fmt(qty)})"
+        if len(text) >= 15:
+            return extra_compact_value_style
+        if len(text) >= 11:
+            return compact_value_style
+        return value_style
 
     def money_qty_markup(value, qty):
         try:
@@ -1149,8 +1181,16 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         groups = get_group_values(sheet, category_cols)
         spans = group_spans(groups)
         # First row: merged section labels. Second row: actual column headers attached to data.
-        group_row = [pcell("", group_style), pcell("", group_style)] + [pcell(g if i == next((s for s, e, v in spans if s <= i <= e), i) else "", group_style) for i, g in enumerate(groups)] + [pcell("", group_style)]
-        headers = ["PLAYER", "TEAM"] + [str(c).upper() for c in category_cols] + ["TOTAL RD$"]
+        group_row = [
+            pcell("", group_style),  # Rank
+            pcell("", group_style),  # Player
+            pcell("", group_style),  # Team
+            pcell("", group_style),  # Total RD$
+        ] + [
+            pcell(g if i == next((s for s, e, v in spans if s <= i <= e), i) else "", group_style)
+            for i, g in enumerate(groups)
+        ]
+        headers = ["RANK", "PLAYER", "TEAM", "TOTAL RD$"] + [str(c).upper() for c in category_cols]
         header_row = [pcell(h, header_style) for h in headers]
         matrix = [group_row, header_row]
         first_data_row = 2
@@ -1162,22 +1202,29 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
 
         for _, r in full.iterrows():
             row = [
+                pcell(f"#{int(r['Rank'])}", value_style),
                 pcell(r["Player"], player_style),
                 pcell(team_pdf_label(r.get("Team", "")), team_style),
+                rich_cell(f'<b>{pdf_number_fmt(r["Total"])}</b>', fit_value_style(r["Total"], is_total=True)),
             ]
             for c in category_cols:
                 w = weight_map.get(c, 0)
                 qty = float(r[c]) if pd.notna(r[c]) else 0
                 val = qty * (0 if pd.isna(w) else w)
-                row.append(rich_cell(money_qty_markup(val, qty), value_style))
-            row.append(rich_cell(f'<b>{pdf_number_fmt(r["Total"])}</b>', total_style))
+                row.append(rich_cell(money_qty_markup(val, qty), fit_value_style(val, qty)))
             matrix.append(row)
 
         # Final row: team/program totals by incentive item. This helps staff see
         # which areas generated or cost the most money overall.
+        grand_total = full["Total"].sum()
         totals_row = [
+            pcell("", team_style),
             pcell("TEAM TOTALS", team_totals_style),
             pcell("", team_style),
+            rich_cell(
+                f'<b>{pdf_number_fmt(grand_total)}</b>',
+                fit_value_style(grand_total, is_total=True),
+            ),
         ]
         for c in category_cols:
             w = weight_map.get(c, 0)
@@ -1185,21 +1232,38 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
                 w = 0
             item_total = (pd.to_numeric(full[c], errors="coerce").fillna(0) * float(w)).sum()
             color = "#006B2E" if item_total > 0 else ("#BA0C2F" if item_total < 0 else "#111827")
-            totals_row.append(rich_cell(f'<font color="{color}"><b>{pdf_number_fmt(item_total)}</b></font>', value_style))
-        totals_row.append(rich_cell(f'<b>{pdf_number_fmt(full["Total"].sum())}</b>', total_style))
+            totals_row.append(rich_cell(
+                f'<font color="{color}"><b>{pdf_number_fmt(item_total)}</b></font>',
+                fit_value_style(item_total),
+            ))
         matrix.append(totals_row)
         total_row_idx = len(matrix) - 1
 
-        fixed = 1.78 * inch + 0.48 * inch + 0.76 * inch
-        remaining = page_width - fixed
-        raw_stat_widths = []
+        # Allocate width using both header length and the largest formatted value.
+        # Columns containing large peso amounts receive proportionally more room.
+        rank_width = 0.42 * inch
+        player_width = 1.48 * inch
+        team_width = 0.42 * inch
+        total_width = 0.92 * inch
+        remaining = page_width - rank_width - player_width - team_width - total_width
+
+        width_scores = []
         for col in category_cols:
-            text_len = max(len(str(col)), 5)
-            raw_stat_widths.append(min(0.78 * inch, max(0.29 * inch, (0.16 + text_len * 0.027) * inch)))
-        raw_total = sum(raw_stat_widths) if raw_stat_widths else 1
-        scale = remaining / raw_total
-        stat_widths = [max(0.29 * inch, w * scale) for w in raw_stat_widths]
-        col_widths = [1.78 * inch, 0.48 * inch] + stat_widths + [0.76 * inch]
+            weight = weight_map.get(col, 0)
+            if pd.isna(weight):
+                weight = 0
+            formatted_values = []
+            for _, rr in full.iterrows():
+                qty = float(rr[col]) if pd.notna(rr[col]) else 0
+                value = qty * float(weight)
+                formatted_values.append(f"{pdf_number_fmt(value)} ({qty_fmt(qty)})")
+            max_value_len = max((len(v) for v in formatted_values), default=1)
+            header_len = len(str(col))
+            width_scores.append(max(5.0, header_len * 0.70, max_value_len * 0.92))
+
+        score_total = sum(width_scores) or 1.0
+        stat_widths = [remaining * (score / score_total) for score in width_scores]
+        col_widths = [rank_width, player_width, team_width, total_width] + stat_widths
 
         row_heights = [0.16 * inch, 0.23 * inch] + [None] * (len(full) + 1)
         item_table = Table(matrix, colWidths=col_widths, rowHeights=row_heights, repeatRows=2)
@@ -1221,29 +1285,29 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         # Merge and center section labels such as HITTING, DEFENSE, DAILY, WEEKLY, TEAM.
         for start, end, label in spans:
             if label and end >= start:
-                ts.append(("SPAN", (2 + start, 0), (2 + end, 0)))
+                ts.append(("SPAN", (4 + start, 0), (4 + end, 0)))
                 if start > 0:
-                    ts.append(("LINEBEFORE", (2 + start, 0), (2 + start, -1), 0.6, colors.HexColor("#A8A8A8")))
-        # Separate total from item sections.
-        ts.append(("LINEBEFORE", (-1, 0), (-1, -1), 0.6, colors.HexColor("#A8A8A8")))
+                    ts.append(("LINEBEFORE", (4 + start, 0), (4 + start, -1), 0.6, colors.HexColor("#A8A8A8")))
+        # Separate the Total RD$ column from the incentive-item sections.
+        ts.append(("LINEAFTER", (3, 0), (3, -1), 0.6, colors.HexColor("#A8A8A8")))
 
         # Team color blocks. Keep TEAM text smaller than player names and values.
         for ridx, (_, r) in enumerate(full.iterrows(), start=first_data_row):
             team = team_pdf_label(r.get("Team", ""))
             if team == "RED":
-                ts.append(("BACKGROUND", (1, ridx), (1, ridx), RANGERS_RED))
+                ts.append(("BACKGROUND", (2, ridx), (2, ridx), RANGERS_RED))
             elif team == "BLUE":
-                ts.append(("BACKGROUND", (1, ridx), (1, ridx), RANGERS_BLUE))
-            ts.append(("TEXTCOLOR", (1, ridx), (1, ridx), colors.white))
-            ts.append(("FONTNAME", (1, ridx), (1, ridx), "Helvetica-Bold"))
-            ts.append(("BACKGROUND", (-1, ridx), (-1, ridx), total_gradient_color(r["Total"], min_total, max_total)))
+                ts.append(("BACKGROUND", (2, ridx), (2, ridx), RANGERS_BLUE))
+            ts.append(("TEXTCOLOR", (2, ridx), (2, ridx), colors.white))
+            ts.append(("FONTNAME", (2, ridx), (2, ridx), "Helvetica-Bold"))
+            ts.append(("BACKGROUND", (3, ridx), (3, ridx), total_gradient_color(r["Total"], min_total, max_total)))
 
         # Style final TEAM TOTALS row.
         ts.append(("LINEABOVE", (0, total_row_idx), (-1, total_row_idx), 0.8, RANGERS_BLUE))
-        ts.append(("BACKGROUND", (0, total_row_idx), (1, total_row_idx), RANGERS_GRAY))
-        ts.append(("TEXTCOLOR", (0, total_row_idx), (1, total_row_idx), colors.white))
+        ts.append(("BACKGROUND", (0, total_row_idx), (2, total_row_idx), RANGERS_GRAY))
+        ts.append(("TEXTCOLOR", (0, total_row_idx), (2, total_row_idx), colors.white))
         ts.append(("FONTNAME", (0, total_row_idx), (-1, total_row_idx), "Helvetica-Bold"))
-        for cidx, c in enumerate(category_cols, start=2):
+        for cidx, c in enumerate(category_cols, start=4):
             w = weight_map.get(c, 0)
             if pd.isna(w):
                 w = 0
@@ -1254,7 +1318,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
                 ts.append(("BACKGROUND", (cidx, total_row_idx), (cidx, total_row_idx), colors.HexColor("#FEE2E2")))
             else:
                 ts.append(("BACKGROUND", (cidx, total_row_idx), (cidx, total_row_idx), colors.HexColor("#F8FAFC")))
-        ts.append(("BACKGROUND", (-1, total_row_idx), (-1, total_row_idx), colors.HexColor("#BBF7D0")))
+        ts.append(("BACKGROUND", (3, total_row_idx), (3, total_row_idx), colors.HexColor("#BBF7D0")))
 
         item_table.setStyle(TableStyle(ts))
         story.append(item_table)
