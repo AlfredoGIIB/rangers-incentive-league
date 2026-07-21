@@ -759,6 +759,16 @@ def pdf_money_fmt(value):
     sign = "-" if value < 0 else ""
     return f"{sign}RD${abs(value):,.0f}"
 
+
+def player_short_name(name):
+    parts = str(name).strip().split()
+
+    if len(parts) <= 1:
+        return str(name)
+
+    return f"{parts[0][0].upper()}. {' '.join(parts[1:])}"
+
+
 def pdf_number_fmt(value):
     try:
         value = float(value)
@@ -1203,7 +1213,7 @@ def generate_executive_pdf(excel_source, sheet_options, updated_label, lang="ES"
         for _, r in full.iterrows():
             row = [
                 pcell(f"#{int(r['Rank'])}", value_style),
-                pcell(r["Player"], player_style),
+                pcell(player_short_name(r["Player"]), player_style),
                 pcell(team_pdf_label(r.get("Team", "")), team_style),
                 rich_cell(f'<b>{pdf_number_fmt(r["Total"])}</b>', fit_value_style(r["Total"], is_total=True)),
             ]
