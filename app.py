@@ -760,16 +760,17 @@ def pdf_money_fmt(value):
     return f"{sign}RD${abs(value):,.0f}"
 
 def player_short_name(name):
-    parts = str(name).strip().split()
+    text = str(name).strip()
 
-    if len(parts) < 2:
-        return str(name)
+    if "," not in text:
+        return text
 
-    last_name = parts[0]
-    first_name = parts[1]
+    last_name, first_name = [x.strip() for x in text.split(",", 1)]
+
+    if not first_name:
+        return last_name
 
     return f"{first_name[0].upper()}. {last_name}"
-
 
 def pdf_number_fmt(value):
     try:
